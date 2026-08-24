@@ -30,7 +30,12 @@ container.innerHTML = `
 `;
 
 try {
-const response = await fetch(`${API_URL}/products`);
+const response = await fetch(`${API_URL}/products`, {
+method: "GET",
+headers: {
+"Accept": "application/json"
+}
+});
 
 if (!response.ok) {
 throw new Error(`Erro HTTP ${response.status}`);
@@ -41,22 +46,30 @@ const data = await response.json();
 console.log("Resposta da API:", data);
 
 if (!data.ok) {
-throw new Error(data.error || "Erro ao buscar produtos");
+throw new Error(
+data.error || "Erro ao buscar produtos"
+);
 }
 
-produtos = data.products || [];
+if (!Array.isArray(data.products)) {
+throw new Error(
+"A API não retornou uma lista de produtos."
+);
+}
+
+produtos = data.products;
 
 mostrarProdutos(produtos);
 
 } catch (error) {
 
-console.error("Erro:", error);
+console.error("Erro ao carregar produtos:", error);
 
 container.innerHTML = `
 <div class="erro">
 <strong>Erro ao carregar produtos.</strong>
 <br>
-Verifique a conexão com o servidor.
+${escapeHTML(error.message)}
 </div>
 `;
 }
@@ -69,13 +82,14 @@ Verifique a conexão com o servidor.
 
 function mostrarProdutos(lista) {
 
-const container = document.getElementById("produtos");
+const container =
+document.getElementById("produtos");
 
 if (!container) return;
 
 container.innerHTML = "";
 
-if (lista.length === 0) {
+if (!Array.isArray(lista) || lista.length === 0) {
 
 container.innerHTML = `
 <p class="sem-produtos">
@@ -89,46 +103,104 @@ return;
 
 lista.forEach(produto => {
 
-// Campos da tabela Produtos
-const id = produto.id;
+// ========================================
+// ID
+// ========================================
+
+const id =
+produto.ID ??
+produto.id;
+
+
+// ========================================
+// NOME
+// ========================================
 
 const nome =
-produto["Produto"] ??
-produto["produto"] ??
+produto.Produto ??
+produto.produto ??
 "";
 
-const categoria =
-produto["Categoria"] ??
-produto["categoria"] ??
+
+// ========================================
+// CATEGORIA
+// ========================================
+
+let categoria = "";
+
+if (
+produto.Categoria &&
+typeof produto.Categoria === "object"
+) {
+
+categoria =
+produto.Categoria.value ??
 "";
+
+} else {
+
+categoria =
+produto.Categoria ??
+produto.categoria ??
+"";
+}
+
+
+// ========================================
+// PREÇO
+// ========================================
 
 const preco =
+Number(
 produto["Preço de venda"] ??
 produto["preço de venda"] ??
 produto["Preco de venda"] ??
-0;
+0
+);
+
+
+// ========================================
+// ESTOQUE
+// ========================================
 
 const estoque =
-produto["Estoque"] ??
-produto["estoque"] ??
-0;
+Number(
+produto.Estoque ??
+produto.estoque ??
+0
+);
+
+
+// ========================================
+// IMAGEM
+// ========================================
 
 const imagem =
-produto["Imagem"] ??
-produto["imagem"] ??
-"";
+produto.Imagem ??
+produto.imagem ??
+null;
+
+
+// ========================================
+// DESCRIÇÃO
+// ========================================
 
 const descricao =
-produto["Descrição"] ??
-produto["descrição"] ??
-produto["Descricao"] ??
+produto.Descrição ??
+produto.descrição ??
+produto.Descricao ??
 "";
 
 
-// Se estiver inativo, não mostra
+// ========================================
+// ATIVO
+// ========================================
+
 const ativo =
-produto["Ativo"] ??
-produto["ativo"];
+produto.Ativo ??
+produto.ativo ??
+true;
+
 
 if (
 ativo === false ||
@@ -139,33 +211,48 @@ return;
 }
 
 
+// ========================================
+// CARD
+// ========================================
+
 const card =
 document.createElement("div");
 
-card.className = "produto-card";
+card.className =
+"produto-card";
 
 
-// Imagem
-let imagemHTML = "";
-
-if (imagem) {
+// ========================================
+// IMAGEM HTML
+// ========================================
 
 let urlImagem = "";
 
-if (typeof imagem === "string") {
-urlImagem = imagem;
-}
 
-else if (
+if (typeof imagem === "string") {
+
+urlImagem = imagem;
+
+} else if (
 Array.isArray(imagem) &&
 imagem.length > 0
 ) {
+
+const arquivo =
+imagem[0];
+
 urlImagem =
-imagem[0].url ||
-imagem[0].thumbnails?.large?.url ||
-imagem[0].thumbnails?.medium?.url ||
+arquivo.url ||
+arquivo.thumbnails?.card_cover?.url ||
+arquivo.thumbnails?.large?.url ||
+arquivo.thumbnails?.medium?.url ||
+arquivo.thumbnails?.small?.url ||
 "";
 }
+
+
+let imagemHTML = "";
+
 
 if (urlImagem) {
 
@@ -174,13 +261,12 @@ imagemHTML = `
 src="${escapeHTML(urlImagem)}"
 class="produto-imagem"
 alt="${escapeHTML(nome)}"
+loading="lazy"
+onerror="this.style.display='none'"
 >
 `;
-}
-}
 
-
-if (!imagemHTML) {
+} else {
 
 imagemHTML = `
 <div class="produto-sem-imagem">
@@ -190,15 +276,25 @@ imagemHTML = `
 }
 
 
+// ========================================
+// HTML DO CARD
+// ========================================
+
 card.innerHTML = `
 
 ${imagemHTML}
 
 <div class="produto-info">
 
+${
+categoria
+? `
 <div class="produto-categoria">
 ${escapeHTML(categoria)}
 </div>
+`
+: ""
+}
 
 <h3>
 ${escapeHTML(nome)}
@@ -206,9 +302,11 @@ ${escapeHTML(nome)}
 
 ${
 descricao
-? `<p class="produto-descricao">
+? `
+<p class="produto-descricao">
 ${escapeHTML(descricao)}
-</p>`
+</p>
+`
 : ""
 }
 
@@ -226,11 +324,11 @@ Estoque: ${escapeHTML(String(estoque))}
 
 <button
 class="btn-adicionar"
-onclick="adicionarCarrinho(${id})"
-${Number(estoque) <= 0 ? "disabled" : ""}
+data-produto-id="${escapeHTML(String(id))}"
+${estoque <= 0 ? "disabled" : ""}
 >
 ${
-Number(estoque) <= 0
+estoque <= 0
 ? "Sem estoque"
 : "Adicionar"
 }
@@ -238,6 +336,25 @@ Number(estoque) <= 0
 
 </div>
 `;
+
+
+// ========================================
+// BOTÃO ADICIONAR
+// ========================================
+
+const botao =
+card.querySelector(".btn-adicionar");
+
+
+if (botao) {
+
+botao.addEventListener(
+"click",
+() => {
+adicionarCarrinho(id);
+}
+);
+}
 
 
 container.appendChild(card);
@@ -253,14 +370,27 @@ container.appendChild(card);
 function adicionarCarrinho(id) {
 
 const produto =
-produtos.find(p => p.id === id);
+produtos.find(
+p =>
+String(p.ID ?? p.id) ===
+String(id)
+);
 
-if (!produto) return;
+
+if (!produto) {
+
+console.error(
+"Produto não encontrado:",
+id
+);
+
+return;
+}
 
 
 const nome =
-produto["Produto"] ??
-produto["produto"] ??
+produto.Produto ??
+produto.produto ??
 "";
 
 
@@ -275,21 +405,31 @@ produto["Preco de venda"] ??
 
 const estoque =
 Number(
-produto["Estoque"] ??
-produto["estoque"] ??
+produto.Estoque ??
+produto.estoque ??
 0
 );
 
 
 const existente =
-carrinho.find(item => item.id === id);
+carrinho.find(
+item =>
+String(item.id) ===
+String(id)
+);
 
 
 if (existente) {
 
-if (existente.quantidade >= estoque) {
+if (
+existente.quantidade >=
+estoque
+) {
 
-alert("Quantidade maior que o estoque.");
+alert(
+"Quantidade maior que o estoque."
+);
+
 return;
 }
 
@@ -298,11 +438,17 @@ existente.quantidade++;
 } else {
 
 carrinho.push({
-id,
-nome,
-preco,
+
+id: id,
+
+nome: nome,
+
+preco: preco,
+
 quantidade: 1,
-estoque
+
+estoque: estoque
+
 });
 }
 
@@ -323,6 +469,7 @@ document.getElementById("carrinho");
 const totalElement =
 document.getElementById("total");
 
+
 if (!container) return;
 
 
@@ -342,11 +489,13 @@ Carrinho vazio
 carrinho.forEach(item => {
 
 const subtotal =
-item.preco * item.quantidade;
+item.preco *
+item.quantidade;
 
 
 const linha =
 document.createElement("div");
+
 
 linha.className =
 "carrinho-item";
@@ -374,8 +523,8 @@ ${formatarMoeda(subtotal)}
 </strong>
 
 <button
-onclick="removerCarrinho(${item.id})"
 class="btn-remover"
+data-produto-id="${escapeHTML(String(item.id))}"
 >
 ×
 </button>
@@ -383,6 +532,24 @@ class="btn-remover"
 </div>
 
 `;
+
+
+const botaoRemover =
+linha.querySelector(
+".btn-remover"
+);
+
+
+if (botaoRemover) {
+
+botaoRemover.addEventListener(
+"click",
+() => {
+removerCarrinho(item.id);
+}
+);
+}
+
 
 container.appendChild(linha);
 
@@ -410,14 +577,18 @@ function removerCarrinho(id) {
 
 const index =
 carrinho.findIndex(
-item => item.id === id
+item =>
+String(item.id) ===
+String(id)
 );
+
 
 if (index === -1) return;
 
 
 if (
-carrinho[index].quantidade > 1
+carrinho[index].quantidade >
+1
 ) {
 
 carrinho[index].quantidade--;
@@ -456,13 +627,18 @@ async function finalizarVenda() {
 
 if (carrinho.length === 0) {
 
-alert("Adicione algum produto primeiro.");
+alert(
+"Adicione algum produto primeiro."
+);
+
 return;
 }
 
 
 const pagamentoElement =
-document.getElementById("pagamento");
+document.getElementById(
+"pagamento"
+);
 
 
 const pagamento =
@@ -510,6 +686,8 @@ method: "POST",
 
 headers: {
 "Content-Type":
+"application/json",
+"Accept":
 "application/json"
 },
 
@@ -526,7 +704,16 @@ const data =
 await response.json();
 
 
-if (!response.ok || !data.ok) {
+console.log(
+"Resposta da venda:",
+data
+);
+
+
+if (
+!response.ok ||
+!data.ok
+) {
 
 throw new Error(
 data.error ||
@@ -535,21 +722,31 @@ data.error ||
 }
 
 
-alert("Venda registrada com sucesso!");
+alert(
+"Venda registrada com sucesso!"
+);
+
 
 carrinho = [];
 
+
 atualizarCarrinho();
 
-carregarProdutos();
+
+await carregarProdutos();
 
 
 } catch (error) {
 
-console.error(error);
+console.error(
+"Erro ao finalizar venda:",
+error
+);
+
 
 alert(
-"Não foi possível registrar a venda."
+"Não foi possível registrar a venda.\n\n" +
+error.message
 );
 }
 }
@@ -561,8 +758,9 @@ alert(
 
 function formatarMoeda(valor) {
 
-return Number(valor || 0)
-.toLocaleString(
+return Number(
+valor || 0
+).toLocaleString(
 "pt-BR",
 {
 style: "currency",
@@ -578,10 +776,27 @@ currency: "BRL"
 
 function escapeHTML(valor) {
 
-return String(valor ?? "")
-.replace(/&/g, "&amp;")
-.replace(/</g, "&lt;")
-.replace(/>/g, "&gt;")
-.replace(/"/g, "&quot;")
-.replace(/'/g, "&#039;");
+return String(
+valor ?? ""
+)
+.replace(
+/&/g,
+"&amp;"
+)
+.replace(
+/</g,
+"&lt;"
+)
+.replace(
+/>/g,
+"&gt;"
+)
+.replace(
+/"/g,
+"&quot;"
+)
+.replace(
+/'/g,
+"&#039;"
+);
 }
