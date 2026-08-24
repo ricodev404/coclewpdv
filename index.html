@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Coclew — Mini PDV</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div id="app">
+
+<!-- MENU LATERAL -->
+<aside class="sidebar">
+
+<div class="brand">
+Coclew
+</div>
+
+<div class="brand-sub">
+Mini PDV
+</div>
+
+<nav>
+
+<button class="nav-btn active" data-view="pdv">
+🛒 Nova venda
+</button>
+
+<button class="nav-btn" data-view="products">
+📦 Produtos
+</button>
+
+<button class="nav-btn" data-view="sales">
+📋 Vendas
+</button>
+
+<button class="nav-btn" data-view="dashboard">
+📊 Dashboard
+</button>
+
+</nav>
+
+<button class="admin-btn" id="adminBtn">
+⚙️ Painel Admin
+</button>
+
+</aside>
+
+
+<!-- CONTEÚDO -->
+<main class="main">
+
+<!-- TOPO -->
+<header class="topbar">
+
+<div>
+
+<h1 id="pageTitle">
+Nova venda
+</h1>
+
+<p id="pageSubtitle">
+Monte o pedido e finalize a venda.
+</p>
+
+</div>
+
+<div class="status">
+Coclew
+</div>
+
+</header>
+
+
+<!-- =========================
+NOVA VENDA
+========================== -->
+
+<section id="pdvView" class="view active">
+
+<div class="layout">
+
+<!-- PRODUTOS -->
+<div class="panel">
+
+<div class="panel-head">
+
+<h2>
+Produtos
+</h2>
+
+<input
+id="searchInput"
+class="search"
+type="text"
+placeholder="🔎 Buscar produto..."
+>
+
+</div>
+
+<div
+id="productGrid"
+class="product-grid"
+>
+
+<div class="empty">
+Carregando produtos...
+</div>
+
+</div>
+
+</div>
+
+
+<!-- CARRINHO -->
+<div class="panel cart-panel">
+
+<div class="panel-head">
+
+<h2>
+Carrinho
+
+<span
+id="cartCount"
+class="count"
+>
+0
+</span>
+
+</h2>
+
+<button
+class="text-btn"
+id="clearCart"
+>
+Limpar
+</button>
+
+</div>
+
+
+<div
+id="cartItems"
+class="cart-items"
+>
+
+<div class="empty">
+Seu carrinho está vazio.
+</div>
+
+</div>
+
+
+<!-- CHECKOUT -->
+<div class="checkout">
+
+<div class="total-row">
+
+<span>
+Total
+</span>
+
+<strong id="cartTotal">
+R$ 0,00
+</strong>
+
+</div>
+
+
+<div class="payment-grid">
+
+<button
+class="payment active"
+data-payment="PIX"
+>
+PIX
+</button>
+
+<button
+class="payment"
+data-payment="Dinheiro"
+>
+Dinheiro
+</button>
+
+<button
+class="payment"
+data-payment="Cartão"
+>
+Cartão
+</button>
+
+</div>
+
+
+<button
+id="finishSale"
+class="primary full"
+>
+FINALIZAR VENDA
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- =========================
+PRODUTOS
+========================== -->
+
+<section
+id="productsView"
+class="view"
+>
+
+<div class="panel">
+
+<div class="panel-head">
+
+<h2>
+Produtos cadastrados
+</h2>
+
+<button
+class="primary"
+id="newProductBtn"
+>
++ Novo produto
+</button>
+
+</div>
+
+<div
+id="productsTable"
+class="table-wrap"
+>
+
+<div class="empty">
+Carregando...
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- =========================
+VENDAS
+========================== -->
+
+<section
+id="salesView"
+class="view"
+>
+
+<div class="panel">
+
+<div class="panel-head">
+
+<h2>
+Histórico de vendas
+</h2>
+
+<button
+class="secondary"
+id="refreshSales"
+>
+Atualizar
+</button>
+
+</div>
+
+<div
+id="salesTable"
+class="table-wrap"
+>
+
+<div class="empty">
+Nenhuma venda registrada.
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- =========================
+DASHBOARD
+========================== -->
+
+<section
+id="dashboardView"
+class="view"
+>
+
+<div class="stats">
+
+<div class="stat">
+
+<span>
+Vendas hoje
+</span>
+
+<strong id="statSales">
+0
+</strong>
+
+</div>
+
+
+<div class="stat">
+
+<span>
+Faturamento hoje
+</span>
+
+<strong id="statRevenue">
+R$ 0,00
+</strong>
+
+</div>
+
+
+<div class="stat">
+
+<span>
+Produtos
+</span>
+
+<strong id="statProducts">
+0
+</strong>
+
+</div>
+
+
+<div class="stat">
+
+<span>
+Itens em estoque
+</span>
+
+<strong id="statStock">
+0
+</strong>
+
+</div>
+
+</div>
+
+</section>
+
+</main>
+
+</div>
+
+
+<!-- =========================
+MODAL ADMIN
+========================== -->
+
+<div
+id="adminModal"
+class="modal hidden"
+>
+
+<div class="modal-card">
+
+<button
+class="close"
+id="closeAdmin"
+>
+×
+</button>
+
+<h2>
+Painel Admin
+</h2>
+
+<p>
+Administração do sistema Coclew.
+</p>
+
+
+<div class="admin-grid">
+
+<div>
+
+<span>
+Sistema
+</span>
+
+<strong>
+Coclew
+</strong>
+
+</div>
+
+
+<div>
+
+<span>
+Banco de dados
+</span>
+
+<strong>
+Baserow
+</strong>
+
+</div>
+
+
+<div>
+
+<span>
+API
+</span>
+
+<strong>
+Cloudflare Worker
+</strong>
+
+</div>
+
+
+<div>
+
+<span>
+Status
+</span>
+
+<strong>
+Online
+</strong>
+
+</div>
+
+</div>
+
+
+<div class="warning">
+
+Área administrativa.
+O controle de usuários e permissões
+será implementado na próxima etapa.
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- NOTIFICAÇÃO -->
+
+<div
+id="toast"
+class="toast"
+></div>
+
+
+<!-- JAVASCRIPT -->
+
+<script src="script.js"></script>
+
+</body>
+</html>
