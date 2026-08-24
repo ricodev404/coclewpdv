@@ -1,38 +1,36 @@
-const API_BASE_URL =
+const API_URL =
 "https://coclew-pdv.ricardorodrigues0671.workers.dev";
 
-let products = [];
-let cart = [];
-let payment = "PIX";
-let sales = [];
+let produtos = [];
+let carrinho = [];
 
-const $ = (selector) => document.querySelector(selector);
+// ========================================
+// INICIAR
+// ========================================
 
-const money = (value) =>
-Number(value || 0).toLocaleString("pt-BR", {
-style: "currency",
-currency: "BRL",
+document.addEventListener("DOMContentLoaded", () => {
+carregarProdutos();
 });
 
-function showToast(message) {
-const toast = $("#toast");
-if (!toast) return;
 
-toast.textContent = message;
-toast.classList.add("show");
+// ========================================
+// BUSCAR PRODUTOS
+// ========================================
 
-setTimeout(() => {
-toast.classList.remove("show");
-}, 2200);
+async function carregarProdutos() {
+const container = document.getElementById("produtos");
+
+if (!container) {
+console.error("Elemento #produtos não encontrado.");
+return;
 }
 
-/* =========================
-CARREGAR PRODUTOS
-========================= */
+container.innerHTML = `
+<p class="carregando">Carregando produtos...</p>
+`;
 
-async function loadProducts() {
 try {
-const response = await fetch(`${API_BASE_URL}/products`);
+const response = await fetch(`${API_URL}/products`);
 
 if (!response.ok) {
 throw new Error(`Erro HTTP ${response.status}`);
@@ -40,600 +38,550 @@ throw new Error(`Erro HTTP ${response.status}`);
 
 const data = await response.json();
 
+console.log("Resposta da API:", data);
+
 if (!data.ok) {
-throw new Error(data.error || "Erro no Worker");
+throw new Error(data.error || "Erro ao buscar produtos");
 }
 
-products = (data.products || []).map((p) => ({
-id: p.id,
-name: p["produto"] || "Produto sem nome",
-price: Number(p["preço de venda"] || 0),
-stock: Number(p["estoque"] || 0),
-category: p["categoria"] || "",
-image: p["imagem"] || "",
-description: p["descrição"] || "",
-active: p["ativo"],
-}));
+produtos = data.products || [];
 
-renderProducts();
-renderProductsTable();
-renderDashboard();
+mostrarProdutos(produtos);
 
-if (products.length === 0) {
-showToast("Nenhum produto cadastrado no Baserow.");
-}
 } catch (error) {
-console.error("Erro Coclew:", error);
 
-products = [];
+console.error("Erro:", error);
 
-renderProducts();
-renderProductsTable();
-renderDashboard();
-
-showToast("Não foi possível carregar os produtos.");
-}
-}
-
-/* =========================
-MOSTRAR PRODUTOS
-========================= */
-
-function renderProducts(filter = "") {
-const grid = $("#productGrid");
-if (!grid) return;
-
-const search = filter.toLowerCase().trim();
-
-const list = products.filter((product) => {
-const name = String(product.name).toLowerCase();
-const category = String(product.category).toLowerCase();
-
-return (
-(!search ||
-name.includes(search) ||
-category.includes(search)) &&
-product.active !== false
-);
-});
-
-if (!list.length) {
-grid.innerHTML = `
-<div class="empty">
-${
-products.length
-? "Nenhum produto encontrado."
-: "Nenhum produto cadastrado no Baserow."
-}
+container.innerHTML = `
+<div class="erro">
+<strong>Erro ao carregar produtos.</strong>
+<br>
+Verifique a conexão com o servidor.
 </div>
 `;
-return;
+}
 }
 
-grid.innerHTML = list
-.map(
-(product) => `
-<article class="product">
-<div class="product-name">
-${escapeHtml(product.name)}
-</div>
 
-<div class="product-meta">
-<div>
-<div class="price">
-${money(product.price)}
-</div>
+// ========================================
+// MOSTRAR PRODUTOS
+// ========================================
 
-<div class="stock">
-Estoque: ${product.stock}
-</div>
-</div>
+function mostrarProdutos(lista) {
 
-<button
-class="primary"
-onclick="addToCart(${product.id})"
-${product.stock <= 0 ? "disabled" : ""}
->
-${product.stock <= 0 ? "Sem estoque" : "+"}
-</button>
-</div>
-</article>
-`
-)
-.join("");
-}
+const container = document.getElementById("produtos");
 
-/* =========================
-CARRINHO
-========================= */
+if (!container) return;
 
-function addToCart(id) {
-const product = products.find((p) => p.id === id);
+container.innerHTML = "";
 
-if (!product || product.stock <= 0) {
-showToast("Produto sem estoque.");
-return;
-}
+if (lista.length === 0) {
 
-const item = cart.find((item) => item.id === id);
-
-if (item) {
-if (item.qty >= product.stock) {
-showToast("Quantidade maior que o estoque.");
-return;
-}
-
-item.qty++;
-} else {
-cart.push({
-id,
-qty: 1,
-});
-}
-
-renderCart();
-}
-
-function changeQty(id, change) {
-const item = cart.find((item) => item.id === id);
-const product = products.find((p) => p.id === id);
-
-if (!item || !product) return;
-
-item.qty += change;
-
-if (item.qty <= 0) {
-cart = cart.filter((item) => item.id !== id);
-}
-
-if (item.qty > product.stock) {
-item.qty = product.stock;
-showToast("Quantidade limitada pelo estoque.");
-}
-
-renderCart();
-}
-
-function cartTotal() {
-return cart.reduce((total, item) => {
-const product = products.find((p) => p.id === item.id);
-
-if (!product) return total;
-
-return total + product.price * item.qty;
-}, 0);
-}
-
-function renderCart() {
-const cartCount = $("#cartCount");
-const cartTotalElement = $("#cartTotal");
-const cartItems = $("#cartItems");
-
-if (!cartCount || !cartTotalElement || !cartItems) return;
-
-cartCount.textContent = cart.reduce(
-(total, item) => total + item.qty,
-0
-);
-
-cartTotalElement.textContent = money(cartTotal());
-
-if (!cart.length) {
-cartItems.innerHTML = `
-<div class="empty">
-Seu carrinho está vazio.
-</div>
-`;
-return;
-}
-
-cartItems.innerHTML = cart
-.map((item) => {
-const product = products.find((p) => p.id === item.id);
-
-if (!product) return "";
-
-return `
-<div class="cart-row">
-
-<div>
-<div class="cart-name">
-${escapeHtml(product.name)}
-</div>
-
-<div class="cart-sub">
-${money(product.price)}
-× ${item.qty}
-=
-${money(product.price * item.qty)}
-</div>
-</div>
-
-<div class="qty">
-
-<button
-onclick="changeQty(${product.id}, -1)"
->
-−
-</button>
-
-<b>${item.qty}</b>
-
-<button
-onclick="changeQty(${product.id}, 1)"
->
-+
-</button>
-
-</div>
-
-</div>
-`;
-})
-.join("");
-}
-
-/* =========================
-FINALIZAR VENDA
-========================= */
-
-async function finishSale() {
-if (!cart.length) {
-showToast("Adicione produtos ao carrinho.");
-return;
-}
-
-showToast("Venda será enviada ao Worker na próxima etapa.");
-}
-
-/* =========================
-TABELA DE PRODUTOS
-========================= */
-
-function renderProductsTable() {
-const table = $("#productsTable");
-
-if (!table) return;
-
-if (!products.length) {
-table.innerHTML = `
-<div class="empty">
+container.innerHTML = `
+<p class="sem-produtos">
 Nenhum produto cadastrado.
-</div>
+</p>
 `;
+
 return;
 }
 
-table.innerHTML = `
-<table>
 
-<thead>
-<tr>
-<th>Produto</th>
-<th>Categoria</th>
-<th>Preço</th>
-<th>Estoque</th>
-</tr>
-</thead>
+lista.forEach(produto => {
 
-<tbody>
+// Campos da tabela Produtos
+const id = produto.id;
 
-${products
-.map(
-(product) => `
-<tr>
+const nome =
+produto["Produto"] ??
+produto["produto"] ??
+"";
 
-<td>
-${escapeHtml(product.name)}
-</td>
+const categoria =
+produto["Categoria"] ??
+produto["categoria"] ??
+"";
 
-<td>
-${escapeHtml(product.category || "—")}
-</td>
+const preco =
+produto["Preço de venda"] ??
+produto["preço de venda"] ??
+produto["Preco de venda"] ??
+0;
 
-<td>
-${money(product.price)}
-</td>
+const estoque =
+produto["Estoque"] ??
+produto["estoque"] ??
+0;
 
-<td>
-${product.stock}
-</td>
+const imagem =
+produto["Imagem"] ??
+produto["imagem"] ??
+"";
 
-</tr>
-`
-)
-.join("")}
+const descricao =
+produto["Descrição"] ??
+produto["descrição"] ??
+produto["Descricao"] ??
+"";
 
-</tbody>
 
-</table>
-`;
-}
+// Se estiver inativo, não mostra
+const ativo =
+produto["Ativo"] ??
+produto["ativo"];
 
-/* =========================
-VENDAS
-========================= */
-
-function renderSales() {
-const table = $("#salesTable");
-
-if (!table) return;
-
-if (!sales.length) {
-table.innerHTML = `
-<div class="empty">
-Nenhuma venda registrada.
-</div>
-`;
+if (
+ativo === false ||
+ativo === "false" ||
+ativo === 0
+) {
 return;
 }
 
-table.innerHTML = `
-<table>
 
-<thead>
-<tr>
-<th>Venda</th>
-<th>Data</th>
-<th>Pagamento</th>
-<th>Total</th>
-</tr>
-</thead>
+const card =
+document.createElement("div");
 
-<tbody>
+card.className = "produto-card";
 
-${sales
-.map(
-(sale) => `
-<tr>
 
-<td>
-#${String(sale.id).slice(-5)}
-</td>
+// Imagem
+let imagemHTML = "";
 
-<td>
-${new Date(
-sale.created_on
-).toLocaleString("pt-BR")}
-</td>
+if (imagem) {
 
-<td>
-${escapeHtml(sale.payment || "—")}
-</td>
+let urlImagem = "";
 
-<td>
-${money(sale.total)}
-</td>
+if (typeof imagem === "string") {
+urlImagem = imagem;
+}
 
-</tr>
-`
-)
-.join("")}
+else if (
+Array.isArray(imagem) &&
+imagem.length > 0
+) {
+urlImagem =
+imagem[0].url ||
+imagem[0].thumbnails?.large?.url ||
+imagem[0].thumbnails?.medium?.url ||
+"";
+}
 
-</tbody>
+if (urlImagem) {
 
-</table>
+imagemHTML = `
+<img
+src="${escapeHTML(urlImagem)}"
+class="produto-imagem"
+alt="${escapeHTML(nome)}"
+>
+`;
+}
+}
+
+
+if (!imagemHTML) {
+
+imagemHTML = `
+<div class="produto-sem-imagem">
+🥤
+</div>
 `;
 }
 
-/* =========================
-DASHBOARD
-========================= */
 
-function renderDashboard() {
-const today = new Date().toDateString();
+card.innerHTML = `
 
-const todaySales = sales.filter(
-(sale) =>
-new Date(sale.created_on).toDateString() === today
-);
+${imagemHTML}
 
-const statSales = $("#statSales");
-const statRevenue = $("#statRevenue");
-const statProducts = $("#statProducts");
-const statStock = $("#statStock");
+<div class="produto-info">
 
-if (statSales) {
-statSales.textContent = todaySales.length;
+<div class="produto-categoria">
+${escapeHTML(categoria)}
+</div>
+
+<h3>
+${escapeHTML(nome)}
+</h3>
+
+${
+descricao
+? `<p class="produto-descricao">
+${escapeHTML(descricao)}
+</p>`
+: ""
 }
 
-if (statRevenue) {
-statRevenue.textContent = money(
-todaySales.reduce(
-(total, sale) =>
-total + Number(sale.total || 0),
+<div class="produto-rodape">
+
+<strong class="produto-preco">
+${formatarMoeda(preco)}
+</strong>
+
+<span class="produto-estoque">
+Estoque: ${escapeHTML(String(estoque))}
+</span>
+
+</div>
+
+<button
+class="btn-adicionar"
+onclick="adicionarCarrinho(${id})"
+${Number(estoque) <= 0 ? "disabled" : ""}
+>
+${
+Number(estoque) <= 0
+? "Sem estoque"
+: "Adicionar"
+}
+</button>
+
+</div>
+`;
+
+
+container.appendChild(card);
+
+});
+}
+
+
+// ========================================
+// ADICIONAR AO CARRINHO
+// ========================================
+
+function adicionarCarrinho(id) {
+
+const produto =
+produtos.find(p => p.id === id);
+
+if (!produto) return;
+
+
+const nome =
+produto["Produto"] ??
+produto["produto"] ??
+"";
+
+
+const preco =
+Number(
+produto["Preço de venda"] ??
+produto["preço de venda"] ??
+produto["Preco de venda"] ??
 0
-)
 );
+
+
+const estoque =
+Number(
+produto["Estoque"] ??
+produto["estoque"] ??
+0
+);
+
+
+const existente =
+carrinho.find(item => item.id === id);
+
+
+if (existente) {
+
+if (existente.quantidade >= estoque) {
+
+alert("Quantidade maior que o estoque.");
+return;
 }
 
-if (statProducts) {
-statProducts.textContent = products.length;
+existente.quantidade++;
+
+} else {
+
+carrinho.push({
+id,
+nome,
+preco,
+quantidade: 1,
+estoque
+});
 }
 
-if (statStock) {
-statStock.textContent = products.reduce(
-(total, product) =>
-total + Number(product.stock || 0),
+
+atualizarCarrinho();
+}
+
+
+// ========================================
+// ATUALIZAR CARRINHO
+// ========================================
+
+function atualizarCarrinho() {
+
+const container =
+document.getElementById("carrinho");
+
+const totalElement =
+document.getElementById("total");
+
+if (!container) return;
+
+
+container.innerHTML = "";
+
+
+if (carrinho.length === 0) {
+
+container.innerHTML = `
+<p class="carrinho-vazio">
+Carrinho vazio
+</p>
+`;
+
+} else {
+
+carrinho.forEach(item => {
+
+const subtotal =
+item.preco * item.quantidade;
+
+
+const linha =
+document.createElement("div");
+
+linha.className =
+"carrinho-item";
+
+
+linha.innerHTML = `
+
+<div>
+
+<strong>
+${escapeHTML(item.nome)}
+</strong>
+
+<small>
+${item.quantidade} ×
+${formatarMoeda(item.preco)}
+</small>
+
+</div>
+
+<div>
+
+<strong>
+${formatarMoeda(subtotal)}
+</strong>
+
+<button
+onclick="removerCarrinho(${item.id})"
+class="btn-remover"
+>
+×
+</button>
+
+</div>
+
+`;
+
+container.appendChild(linha);
+
+});
+}
+
+
+const total =
+calcularTotal();
+
+
+if (totalElement) {
+
+totalElement.textContent =
+formatarMoeda(total);
+}
+}
+
+
+// ========================================
+// REMOVER DO CARRINHO
+// ========================================
+
+function removerCarrinho(id) {
+
+const index =
+carrinho.findIndex(
+item => item.id === id
+);
+
+if (index === -1) return;
+
+
+if (
+carrinho[index].quantidade > 1
+) {
+
+carrinho[index].quantidade--;
+
+} else {
+
+carrinho.splice(index, 1);
+}
+
+
+atualizarCarrinho();
+}
+
+
+// ========================================
+// TOTAL
+// ========================================
+
+function calcularTotal() {
+
+return carrinho.reduce(
+(total, item) =>
+total +
+item.preco *
+item.quantidade,
 0
 );
 }
+
+
+// ========================================
+// FINALIZAR VENDA
+// ========================================
+
+async function finalizarVenda() {
+
+if (carrinho.length === 0) {
+
+alert("Adicione algum produto primeiro.");
+return;
 }
 
-/* =========================
-NAVEGAÇÃO
-========================= */
 
-function setView(view) {
-document
-.querySelectorAll(".view")
-.forEach((element) =>
-element.classList.remove("active")
-);
+const pagamentoElement =
+document.getElementById("pagamento");
 
-document
-.querySelectorAll(".nav-btn")
-.forEach((element) =>
-element.classList.remove("active")
-);
 
-const target = $(`#${view}View`);
+const pagamento =
+pagamentoElement
+? pagamentoElement.value
+: "Dinheiro";
 
-const button = document.querySelector(
-`[data-view="${view}"]`
-);
 
-if (target) {
-target.classList.add("active");
-}
+const total =
+calcularTotal();
 
-if (button) {
-button.classList.add("active");
-}
 
-const titles = {
-pdv: [
-"Nova venda",
-"Monte o pedido e finalize a venda.",
-],
+const venda = {
 
-products: [
-"Produtos",
-"Cadastre e acompanhe os produtos.",
-],
+data_da_venda:
+new Date().toISOString(),
 
-sales: [
-"Vendas",
-"Histórico das vendas realizadas.",
-],
+total_bruto:
+total,
 
-dashboard: [
-"Dashboard",
-"Resumo do movimento da lanchonete.",
-],
+desconto:
+0,
+
+total_venda:
+total,
+
+pagamento:
+pagamento,
+
+status:
+"Concluída",
+
+observacao:
+""
 };
 
-if (titles[view]) {
-$("#pageTitle").textContent = titles[view][0];
-$("#pageSubtitle").textContent = titles[view][1];
+
+try {
+
+const response =
+await fetch(
+`${API_URL}/sales`,
+{
+method: "POST",
+
+headers: {
+"Content-Type":
+"application/json"
+},
+
+body:
+JSON.stringify({
+venda,
+itens: carrinho
+})
 }
-}
+);
 
-/* =========================
-PROTEÇÃO DE TEXTO
-========================= */
 
-function escapeHtml(value) {
-return String(value ?? "")
-.replaceAll("&", "&amp;")
-.replaceAll("<", "&lt;")
-.replaceAll(">", "&gt;")
-.replaceAll('"', "&quot;")
-.replaceAll("'", "&#039;");
-}
+const data =
+await response.json();
 
-/* =========================
-EVENTOS
-========================= */
 
-document
-.querySelectorAll(".nav-btn")
-.forEach((button) => {
-button.addEventListener("click", () => {
-setView(button.dataset.view);
-});
-});
+if (!response.ok || !data.ok) {
 
-const searchInput = $("#searchInput");
-
-if (searchInput) {
-searchInput.addEventListener("input", (event) => {
-renderProducts(event.target.value);
-});
-}
-
-const clearCart = $("#clearCart");
-
-if (clearCart) {
-clearCart.addEventListener("click", () => {
-cart = [];
-renderCart();
-});
-}
-
-const finishSaleButton = $("#finishSale");
-
-if (finishSaleButton) {
-finishSaleButton.addEventListener(
-"click",
-finishSale
+throw new Error(
+data.error ||
+"Erro ao registrar venda"
 );
 }
 
-document
-.querySelectorAll(".payment")
-.forEach((button) => {
-button.addEventListener("click", () => {
-document
-.querySelectorAll(".payment")
-.forEach((element) =>
-element.classList.remove("active")
+
+alert("Venda registrada com sucesso!");
+
+carrinho = [];
+
+atualizarCarrinho();
+
+carregarProdutos();
+
+
+} catch (error) {
+
+console.error(error);
+
+alert(
+"Não foi possível registrar a venda."
 );
-
-button.classList.add("active");
-
-payment = button.dataset.payment;
-});
-});
-
-const adminBtn = $("#adminBtn");
-const adminModal = $("#adminModal");
-const closeAdmin = $("#closeAdmin");
-
-if (adminBtn && adminModal) {
-adminBtn.addEventListener("click", () => {
-adminModal.classList.remove("hidden");
-});
+}
 }
 
-if (closeAdmin && adminModal) {
-closeAdmin.addEventListener("click", () => {
-adminModal.classList.add("hidden");
-});
+
+// ========================================
+// FORMATAR DINHEIRO
+// ========================================
+
+function formatarMoeda(valor) {
+
+return Number(valor || 0)
+.toLocaleString(
+"pt-BR",
+{
+style: "currency",
+currency: "BRL"
 }
-
-if (adminModal) {
-adminModal.addEventListener("click", (event) => {
-if (event.target.id === "adminModal") {
-adminModal.classList.add("hidden");
-}
-});
-}
-
-const refreshSales = $("#refreshSales");
-
-if (refreshSales) {
-refreshSales.addEventListener("click", () => {
-renderSales();
-showToast("Vendas atualizadas.");
-});
-}
-
-const newProductBtn = $("#newProductBtn");
-
-if (newProductBtn) {
-newProductBtn.addEventListener("click", () => {
-showToast(
-"Cadastro será ligado ao Baserow na próxima etapa."
 );
-});
 }
 
-/* =========================
-INICIAR COCLEW
-========================= */
 
-loadProducts();
-renderCart();
-renderSales();
-renderDashboard();
+// ========================================
+// PROTEGER HTML
+// ========================================
+
+function escapeHTML(valor) {
+
+return String(valor ?? "")
+.replace(/&/g, "&amp;")
+.replace(/</g, "&lt;")
+.replace(/>/g, "&gt;")
+.replace(/"/g, "&quot;")
+.replace(/'/g, "&#039;");
+}
