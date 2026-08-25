@@ -1352,15 +1352,13 @@ ativo
 function mostrarTabelaVendas() {
 
 const tabela =
-document.getElementById(
-"salesTable"
-);
-
+document.getElementById("salesTable");
 
 if (!tabela) return;
 
 
 if (
+!Array.isArray(vendas) ||
 vendas.length === 0
 ) {
 
@@ -1371,7 +1369,6 @@ Nenhuma venda registrada.
 `;
 
 return;
-
 }
 
 
@@ -1382,44 +1379,100 @@ tabela.innerHTML = `
 <thead>
 
 <tr>
-
+<th>ID</th>
 <th>Data</th>
+<th>Produto</th>
+<th>Qtd.</th>
 <th>Total</th>
 <th>Pagamento</th>
 <th>Status</th>
-
 </tr>
 
 </thead>
-
 
 <tbody>
 
 ${vendas.map(venda => {
 
+const id =
+venda.id ??
+venda.ID ??
+"-";
+
+
 const data =
-venda.data_da_venda ??
-venda["Data da venda"] ??
 venda["Criado em"] ??
+venda["created_on"] ??
+venda.data_da_venda ??
 "";
 
 
 const total =
-venda.total_venda ??
+Number(
 venda["Total venda"] ??
-0;
+venda.total_venda ??
+0
+);
 
 
 const pagamento =
-venda.pagamento ??
+obterTexto(
 venda.Pagamento ??
-"";
+venda.pagamento ??
+""
+);
 
 
 const status =
-venda.status ??
+obterTexto(
 venda.Status ??
-"";
+venda.status ??
+""
+);
+
+
+const itens =
+Array.isArray(venda.itens)
+? venda.itens
+: [];
+
+
+let produtosHTML = "";
+
+let quantidadeTotal = 0;
+
+
+if (itens.length === 0) {
+
+produtosHTML =
+"Nenhum item";
+
+} else {
+
+produtosHTML =
+itens.map(item => {
+
+const nome =
+item.produto?.nome ??
+"Produto";
+
+const quantidade =
+Number(
+item.quantidade ?? 0
+);
+
+quantidadeTotal +=
+quantidade;
+
+return `
+<div>
+${escapeHTML(nome)}
+</div>
+`;
+
+}).join("");
+
+}
 
 
 return `
@@ -1428,23 +1481,39 @@ return `
 
 <td>
 ${escapeHTML(
+String(id)
+)}
+</td>
+
+<td>
+${escapeHTML(
 formatarData(data)
 )}
 </td>
 
 <td>
+${produtosHTML}
+</td>
+
+<td>
+${quantidadeTotal}
+</td>
+
+<td>
+<strong>
 ${formatarMoeda(total)}
+</strong>
 </td>
 
 <td>
 ${escapeHTML(
-String(pagamento)
+pagamento
 )}
 </td>
 
 <td>
 ${escapeHTML(
-String(status)
+status
 )}
 </td>
 
@@ -1473,8 +1542,9 @@ const hoje =
 new Date();
 
 
-const dia =
-hoje.toISOString()
+const diaHoje =
+hoje
+.toISOString()
 .slice(0, 10);
 
 
@@ -1482,40 +1552,54 @@ const vendasHoje =
 vendas.filter(venda => {
 
 const data =
-venda.data_da_venda ??
-venda["Data da venda"] ??
 venda["Criado em"] ??
+venda["created_on"] ??
+venda.data_da_venda ??
 "";
 
 
+if (!data) {
+return false;
+}
+
+
 return String(data)
-.startsWith(dia);
+.startsWith(diaHoje);
 
 });
 
 
 const faturamento =
 vendasHoje.reduce(
-(total, venda) =>
-total +
+(total, venda) => {
+
+const valor =
 Number(
-venda.total_venda ??
 venda["Total venda"] ??
+venda.total_venda ??
 0
-),
+);
+
+
+return total + valor;
+
+},
 0
 );
 
 
 const estoque =
 produtos.reduce(
-(total, produto) =>
-total +
+(total, produto) => {
+
+return total +
 Number(
 produto.Estoque ??
 produto.estoque ??
 0
-),
+);
+
+},
 0
 );
 
@@ -1576,6 +1660,79 @@ statStock.textContent =
 estoque;
 
 }
+
+}
+
+
+// ========================================
+// TRANSFORMAR OBJETOS EM TEXTO
+// ========================================
+
+function obterTexto(valor) {
+
+if (
+valor === null ||
+valor === undefined
+) {
+
+return "";
+
+}
+
+
+if (
+typeof valor === "string" ||
+typeof valor === "number" ||
+typeof valor === "boolean"
+) {
+
+return String(valor);
+
+}
+
+
+if (
+typeof valor === "object"
+) {
+
+if (
+valor.value !== undefined
+) {
+
+return String(
+valor.value
+);
+
+}
+
+
+if (
+valor.name !== undefined
+) {
+
+return String(
+valor.name
+);
+
+}
+
+
+if (
+Array.isArray(valor)
+) {
+
+return valor
+.map(item =>
+obterTexto(item)
+)
+.join(", ");
+
+}
+
+}
+
+
+return "";
 
 }
 
