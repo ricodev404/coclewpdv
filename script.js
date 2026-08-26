@@ -136,23 +136,17 @@ paginas[view].subtitulo;
 
 
 if (view === "products") {
-
 mostrarTabelaProdutos();
-
 }
 
 
 if (view === "sales") {
-
 carregarVendas();
-
 }
 
 
 if (view === "dashboard") {
-
 atualizarDashboard();
-
 }
 
 }
@@ -165,16 +159,12 @@ atualizarDashboard();
 function configurarBusca() {
 
 const input =
-document.getElementById(
-"searchInput"
-);
+document.getElementById("searchInput");
 
 if (!input) return;
 
 
-input.addEventListener(
-"input",
-() => {
+input.addEventListener("input", () => {
 
 const termo =
 input.value
@@ -185,7 +175,6 @@ input.value
 if (!termo) {
 
 mostrarProdutos(produtos);
-
 return;
 
 }
@@ -220,8 +209,7 @@ categoria.includes(termo)
 
 mostrarProdutos(filtrados);
 
-}
-);
+});
 
 }
 
@@ -235,9 +223,7 @@ async function carregarProdutos() {
 try {
 
 const response =
-await fetch(
-`${API_URL}/products`
-);
+await fetch(`${API_URL}/products`);
 
 
 const data =
@@ -264,9 +250,7 @@ Array.isArray(data.products)
 
 
 mostrarProdutos(produtos);
-
 mostrarTabelaProdutos();
-
 atualizarDashboard();
 
 } catch (erro) {
@@ -299,7 +283,7 @@ Erro ao carregar produtos.
 
 
 // ========================================
-// MOSTRAR PRODUTOS NO PDV
+// MOSTRAR PRODUTOS
 // ========================================
 
 function mostrarProdutos(lista) {
@@ -354,7 +338,7 @@ produto.categoria ??
 
 
 const preco =
-Number(
+obterNumero(
 produto["Preço de venda"] ??
 produto["preço de venda"] ??
 produto["Preco de venda"] ??
@@ -363,7 +347,7 @@ produto["Preco de venda"] ??
 
 
 const estoque =
-Number(
+obterNumero(
 produto.Estoque ??
 produto.estoque ??
 0
@@ -371,10 +355,12 @@ produto.estoque ??
 
 
 const descricao =
+obterTexto(
 produto.Descrição ??
 produto.descrição ??
 produto.Descricao ??
-"";
+""
+);
 
 
 const ativo =
@@ -388,9 +374,7 @@ ativo === false ||
 ativo === "false" ||
 ativo === 0
 ) {
-
 return;
-
 }
 
 
@@ -534,7 +518,7 @@ container.appendChild(card);
 
 
 // ========================================
-// TABELA DE PRODUTOS
+// TABELA PRODUTOS
 // ========================================
 
 function mostrarTabelaProdutos() {
@@ -568,14 +552,12 @@ tabela.innerHTML = `
 <thead>
 
 <tr>
-
 <th>ID</th>
 <th>Produto</th>
 <th>Categoria</th>
 <th>Preço</th>
 <th>Estoque</th>
 <th>Status</th>
-
 </tr>
 
 </thead>
@@ -604,14 +586,29 @@ produto.ativo ??
 true;
 
 
+const preco =
+obterNumero(
+produto["Preço de venda"] ??
+produto["preço de venda"] ??
+produto["Preco de venda"] ??
+0
+);
+
+
+const estoque =
+obterNumero(
+produto.Estoque ??
+produto.estoque ??
+0
+);
+
+
 return `
 
 <tr>
 
 <td>
-${escapeHTML(
-String(id)
-)}
+${escapeHTML(String(id))}
 </td>
 
 <td>
@@ -623,24 +620,16 @@ produto.produto ??
 </td>
 
 <td>
-${escapeHTML(
-categoria
-)}
+${escapeHTML(categoria)}
 </td>
 
 <td>
-${formatarMoeda(
-produto["Preço de venda"] ??
-0
-)}
+${formatarMoeda(preco)}
 </td>
 
 <td>
 ${escapeHTML(
-String(
-produto.Estoque ??
-0
-)
+String(estoque)
 )}
 </td>
 
@@ -747,7 +736,7 @@ produto.produto ??
 
 
 const preco =
-Number(
+obterNumero(
 produto["Preço de venda"] ??
 produto["preço de venda"] ??
 produto["Preco de venda"] ??
@@ -756,7 +745,7 @@ produto["Preco de venda"] ??
 
 
 const estoque =
-Number(
+obterNumero(
 produto.Estoque ??
 produto.estoque ??
 0
@@ -793,8 +782,7 @@ existente.quantidade++;
 
 carrinho.push({
 
-id:
-Number(id),
+id: Number(id),
 
 nome,
 
@@ -979,10 +967,7 @@ carrinho[index].quantidade--;
 
 } else {
 
-carrinho.splice(
-index,
-1
-);
+carrinho.splice(index, 1);
 
 }
 
@@ -1002,8 +987,8 @@ return carrinho.reduce(
 (total, item) =>
 total +
 (
-Number(item.preco) *
-Number(item.quantidade)
+obterNumero(item.preco) *
+obterNumero(item.quantidade)
 ),
 0
 );
@@ -1077,14 +1062,11 @@ calcularTotal();
 
 const venda = {
 
-total_bruto:
-total,
+total_bruto: total,
 
-desconto:
-0,
+desconto: 0,
 
-total_venda:
-total,
+total_venda: total,
 
 pagamento:
 pagamentoSelecionado,
@@ -1092,8 +1074,7 @@ pagamentoSelecionado,
 status:
 "Concluída",
 
-observacao:
-""
+observacao: ""
 
 };
 
@@ -1108,6 +1089,9 @@ method: "POST",
 
 headers: {
 "Content-Type":
+"application/json",
+
+"Accept":
 "application/json"
 },
 
@@ -1147,11 +1131,13 @@ carrinho = [];
 
 atualizarCarrinho();
 
+
 await carregarProdutos();
 
 await carregarVendas();
 
 atualizarDashboard();
+
 
 } catch (erro) {
 
@@ -1262,7 +1248,6 @@ tabela.innerHTML = `
 <thead>
 
 <tr>
-
 <th>ID</th>
 <th>Data</th>
 <th>Produto</th>
@@ -1270,7 +1255,6 @@ tabela.innerHTML = `
 <th>Total</th>
 <th>Pagamento</th>
 <th>Status</th>
-
 </tr>
 
 </thead>
@@ -1288,16 +1272,29 @@ venda.ID ??
 const data =
 venda["Criado em"] ??
 venda["created_on"] ??
+venda["Created on"] ??
+venda["Data da venda"] ??
+venda["Data de venda"] ??
 venda.data_da_venda ??
 "";
 
 
+/*
+* IMPORTANTE:
+* O Baserow da sua tabela usa
+* "Total da Venda".
+*/
+
 const total =
-Number(
+obterNumero(
+venda["Total da Venda"] ??
+venda["Total da venda"] ??
 venda["Total venda"] ??
+venda["Total de Venda"] ??
 venda["Total de venda"] ??
 venda.total_venda ??
 venda.total ??
+venda.valor_total ??
 0
 );
 
@@ -1319,9 +1316,7 @@ venda.status ??
 
 
 const itens =
-Array.isArray(
-venda.itens
-)
+Array.isArray(venda.itens)
 ? venda.itens
 : [];
 
@@ -1332,12 +1327,13 @@ itens
 
 if (
 item.produto &&
-typeof item.produto ===
-"object"
+typeof item.produto === "object"
 ) {
 
-return (
-item.produto.nome ||
+return obterTexto(
+item.produto.nome ??
+item.produto.Produto ??
+item.produto.produto ??
 "Produto"
 );
 
@@ -1345,8 +1341,7 @@ item.produto.nome ||
 
 
 if (
-typeof item.produto ===
-"string"
+typeof item.produto === "string"
 ) {
 
 return item.produto;
@@ -1357,15 +1352,18 @@ return item.produto;
 return "Produto";
 
 })
+.filter(Boolean)
 .join(", ");
 
 
 const quantidade =
 itens.reduce(
-(total, item) =>
-total +
-Number(
-item.quantidade || 0
+(totalQuantidade, item) =>
+totalQuantidade +
+obterNumero(
+item.quantidade ??
+item.Quantidade ??
+0
 ),
 0
 );
@@ -1444,14 +1442,25 @@ vendas.filter(venda => {
 const data =
 venda["Criado em"] ??
 venda["created_on"] ??
-venda.data_da_venda;
+venda["Created on"] ??
+venda["Data da venda"] ??
+venda["Data de venda"] ??
+venda.data_da_venda ??
+"";
 
 
-if (!data) return false;
+if (!data) {
+return false;
+}
 
 
 const d =
-new Date(data);
+converterDataBaserow(data);
+
+
+if (!d) {
+return false;
+}
 
 
 return (
@@ -1471,14 +1480,21 @@ let faturamento = 0;
 
 vendasHoje.forEach(venda => {
 
-faturamento +=
-Number(
+const valor =
+obterNumero(
+venda["Total da Venda"] ??
+venda["Total da venda"] ??
 venda["Total venda"] ??
+venda["Total de Venda"] ??
 venda["Total de venda"] ??
 venda.total_venda ??
 venda.total ??
+venda.valor_total ??
 0
 );
+
+
+faturamento += valor;
 
 });
 
@@ -1539,7 +1555,7 @@ statStock.textContent =
 produtos.reduce(
 (total, produto) =>
 total +
-Number(
+obterNumero(
 produto.Estoque ??
 produto.estoque ??
 0
@@ -1750,9 +1766,7 @@ CADASTRAR PRODUTO
 `;
 
 
-document.body.appendChild(
-modal
-);
+document.body.appendChild(modal);
 
 
 document
@@ -1816,9 +1830,7 @@ document.getElementById(
 
 
 if (modal) {
-
 modal.remove();
-
 }
 
 }
@@ -2113,7 +2125,100 @@ modal.classList.add(
 
 
 // ========================================
-// UTILITÁRIOS
+// CONVERTER NÚMERO
+// ========================================
+
+function obterNumero(valor) {
+
+if (
+valor === null ||
+valor === undefined ||
+valor === ""
+) {
+
+return 0;
+
+}
+
+
+if (
+typeof valor === "number"
+) {
+
+return Number.isFinite(valor)
+? valor
+: 0;
+
+}
+
+
+if (
+typeof valor === "object"
+) {
+
+return obterNumero(
+valor.value ??
+valor.amount ??
+valor.valor ??
+valor.number ??
+0
+);
+
+}
+
+
+let texto =
+String(valor).trim();
+
+
+/*
+* Trata números no formato:
+* 15
+* 15.50
+* 15,50
+* R$ 15,50
+*/
+
+texto =
+texto.replace(
+/R\$/gi,
+""
+)
+.trim();
+
+
+if (
+texto.includes(",")
+) {
+
+texto =
+texto
+.replace(/\./g, "")
+.replace(",", ".");
+
+}
+
+
+texto =
+texto.replace(
+/[^0-9.-]/g,
+""
+);
+
+
+const numero =
+Number(texto);
+
+
+return Number.isFinite(numero)
+? numero
+: 0;
+
+}
+
+
+// ========================================
+// OBTER TEXTO
 // ========================================
 
 function obterTexto(valor) {
@@ -2129,14 +2234,30 @@ return "";
 
 
 if (
+Array.isArray(valor)
+) {
+
+return valor
+.map(item =>
+obterTexto(item)
+)
+.filter(Boolean)
+.join(", ");
+
+}
+
+
+if (
 typeof valor === "object"
 ) {
 
-return (
+return String(
 valor.value ??
 valor.name ??
 valor.label ??
 valor.nome ??
+valor.Produto ??
+valor.produto ??
 ""
 );
 
@@ -2148,10 +2269,125 @@ return String(valor);
 }
 
 
+// ========================================
+// DATA BASEROW
+// ========================================
+
+function converterDataBaserow(valor) {
+
+if (!valor) {
+return null;
+}
+
+
+if (
+valor instanceof Date
+) {
+
+return valor;
+
+}
+
+
+if (
+typeof valor === "object"
+) {
+
+valor =
+valor.value ??
+valor.date ??
+valor.datetime ??
+valor.created_on ??
+"";
+
+}
+
+
+const texto =
+String(valor).trim();
+
+
+if (!texto) {
+return null;
+}
+
+
+/*
+* ISO normal do Baserow
+*/
+
+let data =
+new Date(texto);
+
+
+if (
+!Number.isNaN(
+data.getTime()
+)
+) {
+
+return data;
+
+}
+
+
+/*
+* Caso venha:
+* 22/08/2026 21:17
+*/
+
+const match =
+texto.match(
+/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/
+);
+
+
+if (match) {
+
+const dia =
+Number(match[1]);
+
+const mes =
+Number(match[2]) - 1;
+
+const ano =
+Number(match[3]);
+
+const hora =
+Number(match[4] || 0);
+
+const minuto =
+Number(match[5] || 0);
+
+const segundo =
+Number(match[6] || 0);
+
+
+return new Date(
+ano,
+mes,
+dia,
+hora,
+minuto,
+segundo
+);
+
+}
+
+
+return null;
+
+}
+
+
+// ========================================
+// FORMATAR MOEDA
+// ========================================
+
 function formatarMoeda(valor) {
 
 const numero =
-Number(valor || 0);
+obterNumero(valor);
 
 
 return numero.toLocaleString(
@@ -2165,23 +2401,23 @@ currency: "BRL"
 }
 
 
+// ========================================
+// FORMATAR DATA
+// ========================================
+
 function formatarData(valor) {
 
-if (!valor) return "-";
+if (!valor) {
+return "-";
+}
 
 
 const data =
-new Date(valor);
+converterDataBaserow(valor);
 
 
-if (
-Number.isNaN(
-data.getTime()
-)
-) {
-
+if (!data) {
 return String(valor);
-
 }
 
 
@@ -2191,6 +2427,10 @@ return data.toLocaleString(
 
 }
 
+
+// ========================================
+// ESCAPAR HTML
+// ========================================
 
 function escapeHTML(valor) {
 
