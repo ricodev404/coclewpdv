@@ -4,6 +4,7 @@ const API_URL =
 let produtos = [];
 let vendas = [];
 let carrinho = [];
+
 let pagamentoSelecionado = "PIX";
 
 
@@ -18,6 +19,7 @@ configurarBusca();
 configurarPagamento();
 configurarCarrinho();
 configurarAdmin();
+configurarNovoProduto();
 
 carregarProdutos();
 carregarVendas();
@@ -53,83 +55,82 @@ trocarView(view);
 function trocarView(view) {
 
 document
-.querySelectorAll(".nav-btn")
-.forEach(botao => {
-
-botao.classList.toggle(
-"active",
-botao.dataset.view === view
-);
-
+.querySelectorAll(".view")
+.forEach(secao => {
+secao.classList.remove("active");
 });
 
 
 document
-.querySelectorAll(".view")
-.forEach(secao => {
-
-secao.classList.remove("active");
-
+.querySelectorAll(".nav-btn")
+.forEach(botao => {
+botao.classList.remove("active");
 });
 
 
 const secao =
 document.getElementById(
-`${view}View`
+view + "View"
 );
 
-
 if (secao) {
-
 secao.classList.add("active");
+}
 
+
+const botao =
+document.querySelector(
+`.nav-btn[data-view="${view}"]`
+);
+
+if (botao) {
+botao.classList.add("active");
 }
 
 
 const titulo =
-document.getElementById(
-"pageTitle"
-);
-
+document.getElementById("pageTitle");
 
 const subtitulo =
-document.getElementById(
-"pageSubtitle"
-);
+document.getElementById("pageSubtitle");
 
 
-const textos = {
+const paginas = {
 
-pdv: [
-"Nova venda",
+pdv: {
+titulo: "Nova venda",
+subtitulo:
 "Monte o pedido e finalize a venda."
-],
+},
 
-products: [
-"Produtos",
+products: {
+titulo: "Produtos",
+subtitulo:
 "Gerencie os produtos cadastrados."
-],
+},
 
-sales: [
-"Vendas",
+sales: {
+titulo: "Vendas",
+subtitulo:
 "Consulte o histórico de vendas."
-],
+},
 
-dashboard: [
-"Dashboard",
-"Resumo do seu Mini PDV."
-]
+dashboard: {
+titulo: "Dashboard",
+subtitulo:
+"Resumo do seu PDV."
+}
 
 };
 
 
-if (textos[view]) {
+if (paginas[view]) {
 
 titulo.textContent =
-textos[view][0];
+paginas[view].titulo;
 
 subtitulo.textContent =
-textos[view][1];
+paginas[view].subtitulo;
 
 }
 
@@ -143,7 +144,7 @@ mostrarTabelaProdutos();
 
 if (view === "sales") {
 
-mostrarTabelaVendas();
+carregarVendas();
 
 }
 
@@ -158,118 +159,123 @@ atualizarDashboard();
 
 
 // ========================================
+// BUSCA
+// ========================================
+
+function configurarBusca() {
+
+const input =
+document.getElementById(
+"searchInput"
+);
+
+if (!input) return;
+
+
+input.addEventListener(
+"input",
+() => {
+
+const termo =
+input.value
+.trim()
+.toLowerCase();
+
+
+if (!termo) {
+
+mostrarProdutos(produtos);
+
+return;
+
+}
+
+
+const filtrados =
+produtos.filter(produto => {
+
+const nome =
+String(
+produto.Produto ??
+produto.produto ??
+""
+).toLowerCase();
+
+
+const categoria =
+obterTexto(
+produto.Categoria ??
+produto.categoria ??
+""
+).toLowerCase();
+
+
+return (
+nome.includes(termo) ||
+categoria.includes(termo)
+);
+
+});
+
+
+mostrarProdutos(filtrados);
+
+}
+);
+
+}
+
+
+// ========================================
 // PRODUTOS
 // ========================================
 
 async function carregarProdutos() {
 
-const grid =
-document.getElementById(
-"productGrid"
-);
-
-
-if (!grid) return;
-
-
-grid.innerHTML = `
-<div class="empty">
-Carregando produtos...
-</div>
-`;
-
-
 try {
 
 const response =
 await fetch(
-`${API_URL}/products`,
-{
-method: "GET",
-headers: {
-"Accept":
-"application/json"
-}
-}
+`${API_URL}/products`
 );
-
-
-if (!response.ok) {
-
-throw new Error(
-`Erro HTTP ${response.status}`
-);
-
-}
 
 
 const data =
 await response.json();
 
 
-console.log(
-"Produtos recebidos:",
-data
-);
-
-
-if (!data.ok) {
+if (
+!response.ok ||
+!data.ok
+) {
 
 throw new Error(
 data.error ||
-"Erro ao buscar produtos"
+"Erro ao buscar produtos."
 );
 
 }
 
 
 produtos =
-Array.isArray(
-data.products
-)
+Array.isArray(data.products)
 ? data.products
 : [];
 
 
-mostrarProdutos(
-produtos
-);
-
+mostrarProdutos(produtos);
 
 mostrarTabelaProdutos();
 
-
 atualizarDashboard();
-
 
 } catch (erro) {
 
 console.error(
-"Erro nos produtos:",
+"Erro ao carregar produtos:",
 erro
 );
 
-
-grid.innerHTML = `
-<div class="empty">
-Erro ao carregar produtos.
-<br>
-${escapeHTML(
-erro.message
-)}
-</div>
-`;
-
-}
-
-}
-
-
-// ========================================
-// MOSTRAR PRODUTOS
-// ========================================
-
-function mostrarProdutos(lista) {
 
 const grid =
 document.getElementById(
@@ -277,10 +283,37 @@ document.getElementById(
 );
 
 
-if (!grid) return;
+if (grid) {
+
+grid.innerHTML = `
+<div class="empty">
+Erro ao carregar produtos.
+</div>
+`;
+
+}
+
+}
+
+}
 
 
-grid.innerHTML = "";
+// ========================================
+// MOSTRAR PRODUTOS NO PDV
+// ========================================
+
+function mostrarProdutos(lista) {
+
+const container =
+document.getElementById(
+"productGrid"
+);
+
+
+if (!container) return;
+
+
+container.innerHTML = "";
 
 
 if (
@@ -288,7 +321,7 @@ if (
 lista.length === 0
 ) {
 
-grid.innerHTML = `
+container.innerHTML = `
 <div class="empty">
 Nenhum produto cadastrado.
 </div>
@@ -309,29 +342,15 @@ produto.id;
 const nome =
 produto.Produto ??
 produto.produto ??
-"Produto sem nome";
+"Produto";
 
 
-let categoria = "";
-
-
-if (
-produto.Categoria &&
-typeof produto.Categoria ===
-"object"
-) {
-
-categoria =
-produto.Categoria.value ??
-"";
-
-} else {
-
-categoria =
+const categoria =
+obterTexto(
 produto.Categoria ??
-"";
-
-}
+produto.categoria ??
+""
+);
 
 
 const preco =
@@ -376,51 +395,75 @@ return;
 
 
 const imagem =
-obterImagem(
-produto.Imagem
-);
+produto.Imagem ??
+produto.imagem ??
+null;
+
+
+let imagemURL = "";
+
+
+if (typeof imagem === "string") {
+
+imagemURL = imagem;
+
+}
+
+else if (
+Array.isArray(imagem) &&
+imagem.length > 0
+) {
+
+imagemURL =
+imagem[0]?.url ||
+imagem[0]?.thumbnails?.card_cover?.url ||
+imagem[0]?.thumbnails?.small?.url ||
+"";
+
+}
 
 
 const card =
-document.createElement(
-"div"
-);
+document.createElement("div");
 
 
 card.className =
-"product-card";
+"produto-card";
+
+
+let imagemHTML = "";
+
+
+if (imagemURL) {
+
+imagemHTML = `
+<img
+src="${escapeHTML(imagemURL)}"
+class="produto-imagem"
+alt="${escapeHTML(nome)}"
+>
+`;
+
+} else {
+
+imagemHTML = `
+<div class="produto-sem-imagem">
+🥤
+</div>
+`;
+
+}
 
 
 card.innerHTML = `
 
-${
-imagem
-? `
-<img
-src="${escapeHTML(imagem)}"
-class="product-image"
-alt="${escapeHTML(nome)}"
-loading="lazy"
->
-`
-: `
-<div class="product-image product-no-image">
-🥤
-</div>
-`
-}
+${imagemHTML}
 
-<div class="product-info">
+<div class="produto-info">
 
-${
-categoria
-? `
-<div class="product-category">
+<div class="produto-categoria">
 ${escapeHTML(categoria)}
 </div>
-`
-: ""
-}
 
 <h3>
 ${escapeHTML(nome)}
@@ -429,39 +472,35 @@ ${escapeHTML(nome)}
 ${
 descricao
 ? `
-<p>
+<p class="produto-descricao">
 ${escapeHTML(descricao)}
 </p>
 `
 : ""
 }
 
-<div class="product-bottom">
+<div class="produto-rodape">
 
-<strong>
+<strong class="produto-preco">
 ${formatarMoeda(preco)}
 </strong>
 
-<span>
+<span class="produto-estoque">
 Estoque: ${estoque}
 </span>
 
 </div>
 
 <button
-class="primary full"
-data-add-product="${escapeHTML(
-String(id)
-)}"
+class="btn-adicionar"
+data-id="${id}"
 ${estoque <= 0 ? "disabled" : ""}
 >
-
 ${
 estoque <= 0
 ? "Sem estoque"
 : "Adicionar"
 }
-
 </button>
 
 </div>
@@ -471,7 +510,7 @@ estoque <= 0
 
 const botao =
 card.querySelector(
-"[data-add-product]"
+".btn-adicionar"
 );
 
 
@@ -480,16 +519,14 @@ if (botao) {
 botao.addEventListener(
 "click",
 () => {
-
 adicionarCarrinho(id);
-
 }
 );
 
 }
 
 
-grid.appendChild(card);
+container.appendChild(card);
 
 });
 
@@ -497,134 +534,135 @@ grid.appendChild(card);
 
 
 // ========================================
-// IMAGEM
+// TABELA DE PRODUTOS
 // ========================================
 
-function obterImagem(imagem) {
+function mostrarTabelaProdutos() {
 
-if (
-typeof imagem === "string" &&
-imagem
-) {
-
-return imagem;
-
-}
-
-
-if (
-Array.isArray(imagem) &&
-imagem.length > 0
-) {
-
-const arquivo =
-imagem[0];
-
-
-return (
-arquivo.url ||
-arquivo.thumbnails?.card_cover?.url ||
-arquivo.thumbnails?.small?.url ||
-""
-);
-
-}
-
-
-return "";
-
-}
-
-
-// ========================================
-// BUSCA
-// ========================================
-
-function configurarBusca() {
-
-const input =
+const tabela =
 document.getElementById(
-"searchInput"
+"productsTable"
 );
 
 
-if (!input) return;
+if (!tabela) return;
 
 
-input.addEventListener(
-"input",
-() => {
+if (produtos.length === 0) {
 
-const texto =
-input.value
-.trim()
-.toLowerCase();
-
-
-if (!texto) {
-
-mostrarProdutos(
-produtos
-);
+tabela.innerHTML = `
+<div class="empty">
+Nenhum produto cadastrado.
+</div>
+`;
 
 return;
 
 }
 
 
-const filtrados =
-produtos.filter(
-produto => {
+tabela.innerHTML = `
 
-const nome =
-String(
+<table>
+
+<thead>
+
+<tr>
+
+<th>ID</th>
+<th>Produto</th>
+<th>Categoria</th>
+<th>Preço</th>
+<th>Estoque</th>
+<th>Status</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+${produtos.map(produto => {
+
+const id =
+produto.ID ??
+produto.id ??
+"-";
+
+
+const categoria =
+obterTexto(
+produto.Categoria ??
+produto.categoria ??
+""
+);
+
+
+const ativo =
+produto.Ativo ??
+produto.ativo ??
+true;
+
+
+return `
+
+<tr>
+
+<td>
+${escapeHTML(
+String(id)
+)}
+</td>
+
+<td>
+${escapeHTML(
 produto.Produto ??
 produto.produto ??
 ""
-).toLowerCase();
+)}
+</td>
 
+<td>
+${escapeHTML(
+categoria
+)}
+</td>
 
-let categoria = "";
+<td>
+${formatarMoeda(
+produto["Preço de venda"] ??
+0
+)}
+</td>
 
-
-if (
-produto.Categoria &&
-typeof produto.Categoria ===
-"object"
-) {
-
-categoria =
+<td>
+${escapeHTML(
 String(
-produto.Categoria.value ??
-""
-).toLowerCase();
+produto.Estoque ??
+0
+)
+)}
+</td>
 
-} else {
-
-categoria =
-String(
-produto.Categoria ??
-""
-).toLowerCase();
-
+<td>
+${
+ativo
+? "Ativo"
+: "Inativo"
 }
+</td>
 
+</tr>
 
-return (
-nome.includes(texto) ||
-categoria.includes(texto)
-);
+`;
 
-}
-);
+}).join("")}
 
+</tbody>
 
-mostrarProdutos(
-filtrados
-);
+</table>
 
-}
-);
+`;
 
 }
 
@@ -676,7 +714,7 @@ finalizarVenda
 
 
 // ========================================
-// ADICIONAR AO CARRINHO
+// ADICIONAR CARRINHO
 // ========================================
 
 function adicionarCarrinho(id) {
@@ -684,11 +722,10 @@ function adicionarCarrinho(id) {
 const produto =
 produtos.find(
 p =>
-String(
+Number(
 p.ID ??
 p.id
-) ===
-String(id)
+) === Number(id)
 );
 
 
@@ -706,7 +743,7 @@ return;
 const nome =
 produto.Produto ??
 produto.produto ??
-"";
+"Produto";
 
 
 const preco =
@@ -726,22 +763,11 @@ produto.estoque ??
 );
 
 
-if (estoque <= 0) {
-
-alert(
-"Produto sem estoque."
-);
-
-return;
-
-}
-
-
 const existente =
 carrinho.find(
 item =>
-String(item.id) ===
-String(id)
+Number(item.id) ===
+Number(id)
 );
 
 
@@ -767,15 +793,16 @@ existente.quantidade++;
 
 carrinho.push({
 
-id,
+id:
+Number(id),
 
 nome,
 
 preco,
 
-estoque,
+quantidade: 1,
 
-quantidade: 1
+estoque
 
 });
 
@@ -799,13 +826,13 @@ document.getElementById(
 );
 
 
-const total =
+const totalElement =
 document.getElementById(
 "cartTotal"
 );
 
 
-const contador =
+const countElement =
 document.getElementById(
 "cartCount"
 );
@@ -817,9 +844,7 @@ if (!container) return;
 container.innerHTML = "";
 
 
-if (
-carrinho.length === 0
-) {
+if (carrinho.length === 0) {
 
 container.innerHTML = `
 <div class="empty">
@@ -831,19 +856,17 @@ Seu carrinho está vazio.
 
 carrinho.forEach(item => {
 
+const subtotal =
+item.preco *
+item.quantidade;
+
+
 const linha =
-document.createElement(
-"div"
-);
+document.createElement("div");
 
 
 linha.className =
 "cart-item";
-
-
-const subtotal =
-item.preco *
-item.quantidade;
 
 
 linha.innerHTML = `
@@ -868,10 +891,8 @@ ${formatarMoeda(subtotal)}
 </strong>
 
 <button
-class="text-btn"
-data-remove="${escapeHTML(
-String(item.id)
-)}"
+class="btn-remover"
+data-id="${item.id}"
 >
 ×
 </button>
@@ -883,7 +904,7 @@ String(item.id)
 
 const remover =
 linha.querySelector(
-"[data-remove]"
+".btn-remover"
 );
 
 
@@ -892,43 +913,35 @@ if (remover) {
 remover.addEventListener(
 "click",
 () => {
-
-removerCarrinho(
-item.id
-);
-
+removerCarrinho(item.id);
 }
 );
 
 }
 
 
-container.appendChild(
-linha
-);
+container.appendChild(linha);
 
 });
 
 }
 
 
-const valor =
+const total =
 calcularTotal();
 
 
-if (total) {
+if (totalElement) {
 
-total.textContent =
-formatarMoeda(
-valor
-);
+totalElement.textContent =
+formatarMoeda(total);
 
 }
 
 
-if (contador) {
+if (countElement) {
 
-contador.textContent =
+countElement.textContent =
 carrinho.reduce(
 (total, item) =>
 total +
@@ -950,8 +963,8 @@ function removerCarrinho(id) {
 const index =
 carrinho.findIndex(
 item =>
-String(item.id) ===
-String(id)
+Number(item.id) ===
+Number(id)
 );
 
 
@@ -988,8 +1001,10 @@ function calcularTotal() {
 return carrinho.reduce(
 (total, item) =>
 total +
-Number(item.preco || 0) *
-Number(item.quantidade || 0),
+(
+Number(item.preco) *
+Number(item.quantidade)
+),
 0
 );
 
@@ -1014,13 +1029,12 @@ botao.addEventListener(
 "click",
 () => {
 
-botoes.forEach(b => {
-
+botoes.forEach(
+b =>
 b.classList.remove(
 "active"
+)
 );
-
-});
 
 
 botao.classList.add(
@@ -1046,9 +1060,7 @@ botao.dataset.payment ||
 
 async function finalizarVenda() {
 
-if (
-carrinho.length === 0
-) {
+if (carrinho.length === 0) {
 
 alert(
 "Adicione algum produto primeiro."
@@ -1064,9 +1076,6 @@ calcularTotal();
 
 
 const venda = {
-
-data_da_venda:
-new Date().toISOString(),
 
 total_bruto:
 total,
@@ -1095,43 +1104,17 @@ const response =
 await fetch(
 `${API_URL}/sales`,
 {
-
 method: "POST",
 
 headers: {
-
 "Content-Type":
-"application/json",
-
-"Accept":
 "application/json"
-
 },
 
 body:
 JSON.stringify({
-
 venda,
-
-itens:
-carrinho.map(
-item => ({
-
-id:
-item.id,
-
-nome:
-item.nome,
-
-preco:
-item.preco,
-
-quantidade:
-item.quantidade
-
-})
-)
-
+itens: carrinho
 })
 
 }
@@ -1142,12 +1125,6 @@ const data =
 await response.json();
 
 
-console.log(
-"Resposta da venda:",
-data
-);
-
-
 if (
 !response.ok ||
 !data.ok
@@ -1155,7 +1132,7 @@ if (
 
 throw new Error(
 data.error ||
-`Erro HTTP ${response.status}`
+"Erro ao registrar venda."
 );
 
 }
@@ -1168,14 +1145,13 @@ alert(
 
 carrinho = [];
 
-
 atualizarCarrinho();
-
 
 await carregarProdutos();
 
 await carregarVendas();
 
+atualizarDashboard();
 
 } catch (erro) {
 
@@ -1209,190 +1185,41 @@ await fetch(
 );
 
 
-if (!response.ok) {
-
-throw new Error(
-`Erro HTTP ${response.status}`
-);
-
-}
-
-
 const data =
 await response.json();
 
 
-if (!data.ok) {
+if (
+!response.ok ||
+!data.ok
+) {
 
 throw new Error(
 data.error ||
-"Erro ao buscar vendas"
+"Erro ao buscar vendas."
 );
 
 }
 
 
 vendas =
-Array.isArray(
-data.sales
-)
+Array.isArray(data.sales)
 ? data.sales
 : [];
 
 
 mostrarTabelaVendas();
 
-
 atualizarDashboard();
-
 
 } catch (erro) {
 
 console.error(
-"Erro nas vendas:",
+"Erro ao carregar vendas:",
 erro
 );
 
 }
-
-}
-
-
-// ========================================
-// TABELA DE PRODUTOS
-// ========================================
-
-function mostrarTabelaProdutos() {
-
-const tabela =
-document.getElementById(
-"productsTable"
-);
-
-
-if (!tabela) return;
-
-
-if (
-produtos.length === 0
-) {
-
-tabela.innerHTML = `
-<div class="empty">
-Nenhum produto cadastrado.
-</div>
-`;
-
-return;
-
-}
-
-
-tabela.innerHTML = `
-
-<table>
-
-<thead>
-
-<tr>
-
-<th>ID</th>
-<th>Produto</th>
-<th>Categoria</th>
-<th>Preço</th>
-<th>Estoque</th>
-<th>Status</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-${produtos.map(
-produto => {
-
-const id =
-produto.ID ??
-produto.id;
-
-
-const categoria =
-produto.Categoria &&
-typeof produto.Categoria ===
-"object"
-? produto.Categoria.value
-: produto.Categoria;
-
-
-const ativo =
-produto.Ativo ??
-true;
-
-
-return `
-
-<tr>
-
-<td>
-${escapeHTML(
-String(id)
-)}
-</td>
-
-<td>
-${escapeHTML(
-produto.Produto ??
-produto.produto ??
-""
-)}
-</td>
-
-<td>
-${escapeHTML(
-categoria ??
-""
-)}
-</td>
-
-<td>
-${formatarMoeda(
-produto[
-"Preço de venda"
-] ?? 0
-)}
-</td>
-
-<td>
-${escapeHTML(
-String(
-produto.Estoque ??
-produto.estoque ??
-0
-)
-)}
-</td>
-
-<td>
-${
-ativo
-? "Ativo"
-: "Inativo"
-}
-</td>
-
-</tr>
-
-`;
-
-}
-).join("")}
-
-</tbody>
-
-</table>
-
-`;
 
 }
 
@@ -1450,8 +1277,7 @@ tabela.innerHTML = `
 
 <tbody>
 
-${vendas.map(
-venda => {
+${vendas.map(venda => {
 
 const id =
 venda.id ??
@@ -1466,33 +1292,15 @@ venda.data_da_venda ??
 "";
 
 
-// ==================================
-// TOTAL DEFINITIVO
-// ==================================
-
 const total =
-obterNumero(
-venda[
-"Total da Venda"
-] ??
-venda[
-"Total venda"
-] ??
-venda[
-"Total de venda"
-] ??
+Number(
+venda["Total venda"] ??
+venda["Total de venda"] ??
 venda.total_venda ??
-venda[
-"Total Bruto"
-] ??
-venda.total_bruto ??
+venda.total ??
 0
 );
 
-
-// ==================================
-// PAGAMENTO
-// ==================================
 
 const pagamento =
 obterTexto(
@@ -1502,10 +1310,6 @@ venda.pagamento ??
 );
 
 
-// ==================================
-// STATUS
-// ==================================
-
 const status =
 obterTexto(
 venda.Status ??
@@ -1513,10 +1317,6 @@ venda.status ??
 ""
 );
 
-
-// ==================================
-// ITENS
-// ==================================
 
 const itens =
 Array.isArray(
@@ -1526,58 +1326,49 @@ venda.itens
 : [];
 
 
-let produtosHTML =
-"";
+const nomes =
+itens
+.map(item => {
 
+if (
+item.produto &&
+typeof item.produto ===
+"object"
+) {
 
-let quantidadeTotal =
-0;
+return (
+item.produto.nome ||
+"Produto"
+);
+
+}
 
 
 if (
-itens.length === 0
+typeof item.produto ===
+"string"
 ) {
 
-produtosHTML =
-"Nenhum item";
+return item.produto;
 
-} else {
+}
 
-produtosHTML =
-itens.map(
-item => {
 
-const nome =
-item.produto?.nome ??
-item.produto?.Produto ??
-item.produto?.produto ??
-"Produto";
+return "Produto";
+
+})
+.join(", ");
 
 
 const quantidade =
+itens.reduce(
+(total, item) =>
+total +
 Number(
-item.quantidade ??
-item.Quantidade ??
+item.quantidade || 0
+),
 0
 );
-
-
-quantidadeTotal +=
-quantidade;
-
-
-return `
-<div>
-${escapeHTML(
-nome
-)}
-</div>
-`;
-
-}
-).join("");
-
-}
 
 
 return `
@@ -1591,27 +1382,23 @@ String(id)
 </td>
 
 <td>
+${formatarData(data)}
+</td>
+
+<td>
 ${escapeHTML(
-formatarData(data)
+nomes || "Produto"
 )}
 </td>
 
 <td>
-${produtosHTML}
+${quantidade}
 </td>
 
 <td>
-${quantidadeTotal}
-</td>
-
-<td>
-
 <strong>
-${formatarMoeda(
-total
-)}
+${formatarMoeda(total)}
 </strong>
-
 </td>
 
 <td>
@@ -1630,8 +1417,7 @@ status
 
 `;
 
-}
-).join("")}
+}).join("")}
 
 </tbody>
 
@@ -1653,134 +1439,49 @@ new Date();
 
 
 const vendasHoje =
-vendas.filter(
-venda => {
+vendas.filter(venda => {
 
 const data =
 venda["Criado em"] ??
 venda["created_on"] ??
-venda.data_da_venda ??
-"";
+venda.data_da_venda;
 
 
-if (!data) {
-
-return false;
-
-}
+if (!data) return false;
 
 
 const d =
 new Date(data);
 
 
-if (
-Number.isNaN(
-d.getTime()
-)
-) {
-
-return false;
-
-}
-
-
-// Usa a data local do navegador
-// para não perder vendas por causa
-// do UTC.
-
 return (
-d.getFullYear() ===
-hoje.getFullYear() &&
-
+d.getDate() ===
+hoje.getDate() &&
 d.getMonth() ===
 hoje.getMonth() &&
-
-d.getDate() ===
-hoje.getDate()
+d.getFullYear() ===
+hoje.getFullYear()
 );
 
-}
-);
+});
 
 
-// ========================================
-// FATURAMENTO
-// ========================================
-
-const faturamento =
-vendasHoje.reduce(
-(
-total,
-venda
-) => {
-
-const valor =
-obterNumero(
-
-venda[
-"Total da Venda"
-] ??
-
-venda[
-"Total venda"
-] ??
-
-venda[
-"Total de venda"
-] ??
-
-venda.total_venda ??
-
-venda[
-"Total Bruto"
-] ??
-
-venda.total_bruto ??
-
-0
-
-);
+let faturamento = 0;
 
 
-return (
-total +
-valor
-);
+vendasHoje.forEach(venda => {
 
-},
-0
-);
-
-
-// ========================================
-// ESTOQUE
-// ========================================
-
-const estoque =
-produtos.reduce(
-(
-total,
-produto
-) => {
-
-return (
-total +
+faturamento +=
 Number(
-produto.Estoque ??
-produto.estoque ??
-0
-)
-);
-
-},
+venda["Total venda"] ??
+venda["Total de venda"] ??
+venda.total_venda ??
+venda.total ??
 0
 );
 
+});
 
-// ========================================
-// ELEMENTOS
-// ========================================
 
 const statSales =
 document.getElementById(
@@ -1835,7 +1536,16 @@ produtos.length;
 if (statStock) {
 
 statStock.textContent =
-estoque;
+produtos.reduce(
+(total, produto) =>
+total +
+Number(
+produto.Estoque ??
+produto.estoque ??
+0
+),
+0
+);
 
 }
 
@@ -1843,235 +1553,475 @@ estoque;
 
 
 // ========================================
-// TRANSFORMAR OBJETOS EM TEXTO
+// NOVO PRODUTO
 // ========================================
 
-function obterTexto(valor) {
+function configurarNovoProduto() {
 
-if (
-valor === null ||
-valor === undefined
-) {
-
-return "";
-
-}
+const botao =
+document.getElementById(
+"newProductBtn"
+);
 
 
-if (
-typeof valor === "string" ||
-typeof valor === "number" ||
-typeof valor === "boolean"
-) {
+if (!botao) return;
 
-return String(valor);
+
+botao.addEventListener(
+"click",
+abrirFormularioProduto
+);
 
 }
 
 
-if (
-Array.isArray(valor)
-) {
+// ========================================
+// ABRIR FORMULÁRIO
+// ========================================
 
-return valor
-.map(
-item =>
-obterTexto(item)
+function abrirFormularioProduto() {
+
+const existente =
+document.getElementById(
+"novoProdutoModal"
+);
+
+
+if (existente) {
+
+existente.classList.remove(
+"hidden"
+);
+
+return;
+
+}
+
+
+const modal =
+document.createElement("div");
+
+
+modal.id =
+"novoProdutoModal";
+
+modal.className =
+"modal";
+
+
+modal.innerHTML = `
+
+<div class="modal-card">
+
+<button
+class="close"
+id="fecharNovoProduto"
+>
+×
+</button>
+
+<h2>
+Novo produto
+</h2>
+
+<p>
+Cadastre um novo produto.
+</p>
+
+<div class="admin-grid">
+
+<div style="grid-column:1/-1">
+
+<label>
+Produto
+</label>
+
+<input
+id="novoProdutoNome"
+type="text"
+placeholder="Nome do produto"
+>
+
+</div>
+
+<div>
+
+<label>
+Categoria
+</label>
+
+<input
+id="novoProdutoCategoria"
+type="text"
+placeholder="Bebidas"
+>
+
+</div>
+
+<div>
+
+<label>
+Estoque
+</label>
+
+<input
+id="novoProdutoEstoque"
+type="number"
+min="0"
+value="0"
+>
+
+</div>
+
+<div>
+
+<label>
+Preço de venda
+</label>
+
+<input
+id="novoProdutoPreco"
+type="number"
+min="0"
+step="0.01"
+value="0"
+>
+
+</div>
+
+<div>
+
+<label>
+Custo
+</label>
+
+<input
+id="novoProdutoCusto"
+type="number"
+min="0"
+step="0.01"
+value="0"
+>
+
+</div>
+
+<div style="grid-column:1/-1">
+
+<label>
+Descrição
+</label>
+
+<textarea
+id="novoProdutoDescricao"
+rows="3"
+placeholder="Descrição do produto"
+></textarea>
+
+</div>
+
+</div>
+
+<div
+style="
+display:flex;
+gap:10px;
+margin-top:20px;
+"
+>
+
+<button
+class="secondary"
+id="cancelarNovoProduto"
+>
+Cancelar
+</button>
+
+<button
+class="primary"
+id="salvarNovoProduto"
+>
+CADASTRAR PRODUTO
+</button>
+
+</div>
+
+</div>
+
+`;
+
+
+document.body.appendChild(
+modal
+);
+
+
+document
+.getElementById(
+"fecharNovoProduto"
 )
-.filter(Boolean)
-.join(", ");
-
-}
-
-
-if (
-typeof valor === "object"
-) {
-
-if (
-valor.value !== undefined &&
-valor.value !== null
-) {
-
-return String(
-valor.value
+.addEventListener(
+"click",
+fecharFormularioProduto
 );
 
-}
 
-
-if (
-valor.name !== undefined &&
-valor.name !== null
-) {
-
-return String(
-valor.name
-);
-
-}
-
-
-if (
-valor.label !== undefined &&
-valor.label !== null
-) {
-
-return String(
-valor.label
-);
-
-}
-
-
-if (
-valor.title !== undefined &&
-valor.title !== null
-) {
-
-return String(
-valor.title
-);
-
-}
-
-}
-
-
-return "";
-
-}
-
-
-// ========================================
-// TRANSFORMAR NÚMERO
-// ========================================
-
-function obterNumero(valor) {
-
-if (
-valor === null ||
-valor === undefined ||
-valor === ""
-) {
-
-return 0;
-
-}
-
-
-if (
-typeof valor === "number"
-) {
-
-return Number.isFinite(
-valor
+document
+.getElementById(
+"cancelarNovoProduto"
 )
-? valor
-: 0;
+.addEventListener(
+"click",
+fecharFormularioProduto
+);
+
+
+modal.addEventListener(
+"click",
+event => {
+
+if (
+event.target === modal
+) {
+
+fecharFormularioProduto();
 
 }
 
+}
+);
 
-if (
-typeof valor === "object"
-) {
 
-if (
-valor.value !== undefined
-) {
-
-return obterNumero(
-valor.value
+document
+.getElementById(
+"salvarNovoProduto"
+)
+.addEventListener(
+"click",
+salvarNovoProduto
 );
 
 }
 
 
-if (
-valor.amount !== undefined
-) {
+// ========================================
+// FECHAR FORMULÁRIO
+// ========================================
 
-return obterNumero(
-valor.amount
+function fecharFormularioProduto() {
+
+const modal =
+document.getElementById(
+"novoProdutoModal"
 );
 
+
+if (modal) {
+
+modal.remove();
+
+}
+
 }
 
 
-return 0;
+// ========================================
+// SALVAR NOVO PRODUTO
+// ========================================
 
-}
+async function salvarNovoProduto() {
 
-
-let texto =
-String(valor)
+const nome =
+document
+.getElementById(
+"novoProdutoNome"
+)
+.value
 .trim();
 
 
-if (!texto) {
+const categoria =
+document
+.getElementById(
+"novoProdutoCategoria"
+)
+.value
+.trim();
 
-return 0;
+
+const preco =
+Number(
+document
+.getElementById(
+"novoProdutoPreco"
+)
+.value || 0
+);
+
+
+const custo =
+Number(
+document
+.getElementById(
+"novoProdutoCusto"
+)
+.value || 0
+);
+
+
+const estoque =
+Number(
+document
+.getElementById(
+"novoProdutoEstoque"
+)
+.value || 0
+);
+
+
+const descricao =
+document
+.getElementById(
+"novoProdutoDescricao"
+)
+.value
+.trim();
+
+
+if (!nome) {
+
+alert(
+"Digite o nome do produto."
+);
+
+return;
 
 }
-
-
-// Valores vindos como:
-// 15
-// "15.00"
-// "15,00"
-// "R$ 15,00"
-
-texto =
-texto
-.replace(
-/R\$/gi,
-""
-)
-.replace(
-/\s/g,
-""
-);
 
 
 if (
-texto.includes(",") &&
-texto.includes(".")
+preco < 0 ||
+custo < 0 ||
+estoque < 0
 ) {
 
-texto =
-texto
-.replace(
-/\./g,
-""
-)
-.replace(
-",",
-"."
+alert(
+"Os valores não podem ser negativos."
 );
 
-} else if (
-texto.includes(",")
+return;
+
+}
+
+
+const botao =
+document.getElementById(
+"salvarNovoProduto"
+);
+
+
+botao.disabled = true;
+
+botao.textContent =
+"CADASTRANDO...";
+
+
+try {
+
+const response =
+await fetch(
+`${API_URL}/products`,
+{
+
+method: "POST",
+
+headers: {
+"Content-Type":
+"application/json",
+
+"Accept":
+"application/json"
+},
+
+body:
+JSON.stringify({
+
+Produto:
+nome,
+
+Categoria:
+categoria || null,
+
+"Preço de venda":
+preco,
+
+Custo:
+custo,
+
+Estoque:
+estoque,
+
+Descrição:
+descricao,
+
+Ativo:
+true
+
+})
+
+}
+);
+
+
+const data =
+await response.json();
+
+
+if (
+!response.ok ||
+!data.ok
 ) {
 
-texto =
-texto.replace(
-",",
-"."
+throw new Error(
+data.error ||
+"Não foi possível cadastrar o produto."
 );
 
 }
 
 
-const numero =
-Number(texto);
+alert(
+"Produto cadastrado com sucesso!"
+);
 
 
-return Number.isFinite(
-numero
-)
-? numero
-: 0;
+fecharFormularioProduto();
+
+
+await carregarProdutos();
+
+
+trocarView("products");
+
+} catch (erro) {
+
+console.error(
+"Erro ao cadastrar produto:",
+erro
+);
+
+
+alert(
+"Erro ao cadastrar produto:\n" +
+erro.message
+);
+
+
+botao.disabled = false;
+
+botao.textContent =
+"CADASTRAR PRODUTO";
+
+}
 
 }
 
@@ -2145,8 +2095,7 @@ modal.addEventListener(
 event => {
 
 if (
-event.target ===
-modal
+event.target === modal
 ) {
 
 modal.classList.add(
@@ -2164,14 +2113,48 @@ modal.classList.add(
 
 
 // ========================================
-// FORMATAÇÃO DE MOEDA
+// UTILITÁRIOS
 // ========================================
+
+function obterTexto(valor) {
+
+if (
+valor === null ||
+valor === undefined
+) {
+
+return "";
+
+}
+
+
+if (
+typeof valor === "object"
+) {
+
+return (
+valor.value ??
+valor.name ??
+valor.label ??
+valor.nome ??
+""
+);
+
+}
+
+
+return String(valor);
+
+}
+
 
 function formatarMoeda(valor) {
 
-return obterNumero(
-valor
-).toLocaleString(
+const numero =
+Number(valor || 0);
+
+
+return numero.toLocaleString(
 "pt-BR",
 {
 style: "currency",
@@ -2182,44 +2165,32 @@ currency: "BRL"
 }
 
 
-// ========================================
-// FORMATAÇÃO DE DATA
-// ========================================
+function formatarData(valor) {
 
-function formatarData(data) {
-
-if (!data) {
-
-return "-";
-
-}
+if (!valor) return "-";
 
 
-const d =
-new Date(data);
+const data =
+new Date(valor);
 
 
 if (
 Number.isNaN(
-d.getTime()
+data.getTime()
 )
 ) {
 
-return String(data);
+return String(valor);
 
 }
 
 
-return d.toLocaleString(
+return data.toLocaleString(
 "pt-BR"
 );
 
 }
 
-
-// ========================================
-// ESCAPAR HTML
-// ========================================
 
 function escapeHTML(valor) {
 
