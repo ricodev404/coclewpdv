@@ -1,473 +1,289 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Coclew — Mini PDV</title>
+  <title>Coclew — Mini PDV</title>
 
-<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<div id="app">
+  <div id="app">
+
+    <!-- MENU LATERAL -->
+    <aside class="sidebar">
+
+      <div class="brand">Coclew</div>
+      <div class="brand-sub">Mini PDV</div>
+
+      <nav>
+        <button class="nav-btn active" data-view="pdv">
+          🛒 Nova venda
+        </button>
+
+        <button class="nav-btn" data-view="products">
+          📦 Produtos
+        </button>
+
+        <button class="nav-btn" data-view="sales">
+          📋 Vendas
+        </button>
+
+        <button class="nav-btn" data-view="dashboard">
+          📊 Dashboard
+        </button>
+      </nav>
+
+      <button class="admin-btn" id="adminBtn">
+        ⚙️ Painel Admin
+      </button>
+
+    </aside>
+
+    <!-- CONTEÚDO -->
+    <main class="main">
+
+      <!-- TOPO -->
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Nova venda</h1>
+          <p id="pageSubtitle">
+            Monte o pedido e finalize a venda.
+          </p>
+        </div>
+
+        <div class="status">Coclew</div>
+      </header>
+
+      <!-- NOVA VENDA -->
+      <section id="pdvView" class="view active">
+
+        <div class="layout">
+
+          <!-- PRODUTOS -->
+          <div class="panel">
+
+            <div class="panel-head">
+              <h2>Produtos</h2>
+
+              <input
+                id="searchInput"
+                class="search"
+                type="text"
+                placeholder="🔎 Buscar produto..."
+                autocomplete="off"
+              >
+            </div>
 
-<!-- MENU LATERAL -->
-<aside class="sidebar">
+            <div id="productGrid" class="product-grid">
+              <div class="empty">Carregando produtos...</div>
+            </div>
+
+          </div>
+
+          <!-- CARRINHO -->
+          <div class="panel cart-panel">
+
+            <div class="panel-head">
+              <h2>
+                Carrinho
+                <span id="cartCount" class="count">0</span>
+              </h2>
+
+              <button class="text-btn" id="clearCart" type="button">
+                Limpar
+              </button>
+            </div>
 
-<div class="brand">
-Coclew
-</div>
+            <div id="cartItems" class="cart-items">
+              <div class="empty">Seu carrinho está vazio.</div>
+            </div>
 
-<div class="brand-sub">
-Mini PDV
-</div>
+            <!-- CHECKOUT -->
+            <div class="checkout">
 
-<nav>
+              <div class="total-row">
+                <span>Total</span>
+                <strong id="cartTotal">R$ 0,00</strong>
+              </div>
 
-<button class="nav-btn active" data-view="pdv">
-🛒 Nova venda
-</button>
+              <div class="payment-grid">
+                <button
+                  class="payment active"
+                  data-payment="PIX"
+                  type="button"
+                >
+                  PIX
+                </button>
+
+                <button
+                  class="payment"
+                  data-payment="Dinheiro"
+                  type="button"
+                >
+                  Dinheiro
+                </button>
 
-<button class="nav-btn" data-view="products">
-📦 Produtos
-</button>
+                <button
+                  class="payment"
+                  data-payment="Cartão"
+                  type="button"
+                >
+                  Cartão
+                </button>
+              </div>
 
-<button class="nav-btn" data-view="sales">
-📋 Vendas
-</button>
+              <button
+                id="finishSale"
+                class="primary full"
+                type="button"
+              >
+                FINALIZAR VENDA
+              </button>
 
-<button class="nav-btn" data-view="dashboard">
-📊 Dashboard
-</button>
+            </div>
 
-</nav>
+          </div>
 
-<button class="admin-btn" id="adminBtn">
-⚙️ Painel Admin
-</button>
+        </div>
 
-</aside>
+      </section>
 
+      <!-- PRODUTOS -->
+      <section id="productsView" class="view">
 
-<!-- CONTEÚDO -->
-<main class="main">
+        <div class="panel">
 
-<!-- TOPO -->
-<header class="topbar">
+          <div class="panel-head">
+            <h2>Produtos cadastrados</h2>
+          </div>
 
-<div>
+          <div id="productsTable" class="table-wrap">
+            <div class="empty">Carregando...</div>
+          </div>
 
-<h1 id="pageTitle">
-Nova venda
-</h1>
+        </div>
 
-<p id="pageSubtitle">
-Monte o pedido e finalize a venda.
-</p>
+      </section>
 
-</div>
+      <!-- VENDAS -->
+      <section id="salesView" class="view">
 
-<div class="status">
-Coclew
-</div>
+        <div class="panel">
 
-</header>
+          <div class="panel-head">
+            <h2>Histórico de vendas</h2>
 
+            <button
+              class="secondary"
+              id="refreshSales"
+              type="button"
+            >
+              Atualizar
+            </button>
+          </div>
 
-<!-- =========================
-NOVA VENDA
-========================== -->
+          <div id="salesTable" class="table-wrap">
+            <div class="empty">Nenhuma venda registrada.</div>
+          </div>
 
-<section id="pdvView" class="view active">
+        </div>
 
-<div class="layout">
+      </section>
 
-<!-- PRODUTOS -->
-<div class="panel">
+      <!-- DASHBOARD -->
+      <section id="dashboardView" class="view">
 
-<div class="panel-head">
+        <div class="stats">
 
-<h2>
-Produtos
-</h2>
+          <div class="stat">
+            <span>Vendas hoje</span>
+            <strong id="statSales">0</strong>
+          </div>
 
-<input
-id="searchInput"
-class="search"
-type="text"
-placeholder="🔎 Buscar produto..."
->
+          <div class="stat">
+            <span>Faturamento hoje</span>
+            <strong id="statRevenue">R$ 0,00</strong>
+          </div>
 
-</div>
+          <div class="stat">
+            <span>Produtos</span>
+            <strong id="statProducts">0</strong>
+          </div>
 
-<div
-id="productGrid"
-class="product-grid"
->
+          <div class="stat">
+            <span>Itens em estoque</span>
+            <strong id="statStock">0</strong>
+          </div>
 
-<div class="empty">
-Carregando produtos...
-</div>
+        </div>
 
-</div>
+      </section>
 
-</div>
+    </main>
 
+  </div>
 
-<!-- CARRINHO -->
-<div class="panel cart-panel">
+  <!-- MODAL ADMIN -->
+  <div id="adminModal" class="modal hidden">
 
-<div class="panel-head">
+    <div class="modal-card">
 
-<h2>
-Carrinho
+      <button
+        class="close"
+        id="closeAdmin"
+        type="button"
+        aria-label="Fechar painel administrativo"
+      >
+        ×
+      </button>
 
-<span
-id="cartCount"
-class="count"
->
-0
-</span>
+      <h2>Painel Admin</h2>
 
-</h2>
+      <p>Administração do sistema Coclew.</p>
 
-<button
-class="text-btn"
-id="clearCart"
->
-Limpar
-</button>
+      <div class="admin-grid">
 
-</div>
+        <div>
+          <span>Sistema</span>
+          <strong>Coclew</strong>
+        </div>
 
+        <div>
+          <span>Banco de dados</span>
+          <strong>Baserow</strong>
+        </div>
 
-<div
-id="cartItems"
-class="cart-items"
->
+        <div>
+          <span>API</span>
+          <strong>Cloudflare Worker</strong>
+        </div>
 
-<div class="empty">
-Seu carrinho está vazio.
-</div>
+        <div>
+          <span>Status</span>
+          <strong>Online</strong>
+        </div>
 
-</div>
+      </div>
 
+      <div class="warning">
+        Área administrativa.
+        O controle de usuários e permissões
+        será implementado na próxima etapa.
+      </div>
 
-<!-- CHECKOUT -->
-<div class="checkout">
+    </div>
 
-<div class="total-row">
+  </div>
 
-<span>
-Total
-</span>
+  <!-- NOTIFICAÇÃO -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<strong id="cartTotal">
-R$ 0,00
-</strong>
-
-</div>
-
-
-<div class="payment-grid">
-
-<button
-class="payment active"
-data-payment="PIX"
->
-PIX
-</button>
-
-<button
-class="payment"
-data-payment="Dinheiro"
->
-Dinheiro
-</button>
-
-<button
-class="payment"
-data-payment="Cartão"
->
-Cartão
-</button>
-
-</div>
-
-
-<button
-id="finishSale"
-class="primary full"
->
-FINALIZAR VENDA
-</button>
-
-</div>
-
-</div>
-
-</div>
-
-</section>
-
-
-<!-- =========================
-PRODUTOS
-========================== -->
-
-<section
-id="productsView"
-class="view"
->
-
-<div class="panel">
-
-<div class="panel-head">
-
-<h2>
-Produtos cadastrados
-</h2>
-
-</div>
-
-<div
-id="productsTable"
-class="table-wrap"
->
-
-<div class="empty">
-Carregando...
-</div>
-
-</div>
-
-</div>
-
-</section>
-
-
-<!-- =========================
-VENDAS
-========================== -->
-
-<section
-id="salesView"
-class="view"
->
-
-<div class="panel">
-
-<div class="panel-head">
-
-<h2>
-Histórico de vendas
-</h2>
-
-<button
-class="secondary"
-id="refreshSales"
->
-Atualizar
-</button>
-
-</div>
-
-<div
-id="salesTable"
-class="table-wrap"
->
-
-<div class="empty">
-Nenhuma venda registrada.
-</div>
-
-</div>
-
-</div>
-
-</section>
-
-
-<!-- =========================
-DASHBOARD
-========================== -->
-
-<section
-id="dashboardView"
-class="view"
->
-
-<div class="stats">
-
-<div class="stat">
-
-<span>
-Vendas hoje
-</span>
-
-<strong id="statSales">
-0
-</strong>
-
-</div>
-
-
-<div class="stat">
-
-<span>
-Faturamento hoje
-</span>
-
-<strong id="statRevenue">
-R$ 0,00
-</strong>
-
-</div>
-
-
-<div class="stat">
-
-<span>
-Produtos
-</span>
-
-<strong id="statProducts">
-0
-</strong>
-
-</div>
-
-
-<div class="stat">
-
-<span>
-Itens em estoque
-</span>
-
-<strong id="statStock">
-0
-</strong>
-
-</div>
-
-</div>
-
-</section>
-
-</main>
-
-</div>
-
-
-<!-- =========================
-MODAL ADMIN
-========================== -->
-
-<div
-id="adminModal"
-class="modal hidden"
->
-
-<div class="modal-card">
-
-<button
-class="close"
-id="closeAdmin"
->
-×
-</button>
-
-<h2>
-Painel Admin
-</h2>
-
-<p>
-Administração do sistema Coclew.
-</p>
-
-
-<div class="admin-grid">
-
-<div>
-
-<span>
-Sistema
-</span>
-
-<strong>
-Coclew
-</strong>
-
-</div>
-
-
-<div>
-
-<span>
-Banco de dados
-</span>
-
-<strong>
-Baserow
-</strong>
-
-</div>
-
-
-<div>
-
-<span>
-API
-</span>
-
-<strong>
-Cloudflare Worker
-</strong>
-
-</div>
-
-
-<div>
-
-<span>
-Status
-</span>
-
-<strong>
-Online
-</strong>
-
-</div>
-
-</div>
-
-
-<div class="warning">
-
-Área administrativa.
-O controle de usuários e permissões
-será implementado na próxima etapa.
-
-</div>
-
-</div>
-
-</div>
-
-
-<!-- NOTIFICAÇÃO -->
-
-<div
-id="toast"
-class="toast"
-></div>
-
-
-<!-- JAVASCRIPT -->
-
-<script src="script.js"></script>
+  <!-- JAVASCRIPT -->
+  <script src="script.js"></script>
 
 </body>
 </html>
