@@ -4,11 +4,6 @@ let produtos = [];
 let vendas = [];
 let carrinho = [];
 let pagamentoSelecionado = "PIX";
-let finalizandoVenda = false;
-
-// ========================================
-// INICIAR
-// ========================================
 
 document.addEventListener("DOMContentLoaded", () => {
   configurarNavegacao();
@@ -18,11 +13,14 @@ document.addEventListener("DOMContentLoaded", () => {
   configurarAdmin();
   configurarNovoProduto();
 
-  // Carrega as duas informações sem bloquear uma à outra.
-  Promise.allSettled([
-    carregarProdutos(),
-    carregarVendas()
-  ]);
+  atualizarCarrinho();
+  carregarProdutos();
+  carregarVendas();
+
+  const atualizarVendas = document.getElementById("refreshSales");
+  if (atualizarVendas) {
+    atualizarVendas.addEventListener("click", carregarVendas);
+  }
 });
 
 // ========================================
@@ -46,39 +44,27 @@ function trocarView(view) {
     botao.classList.remove("active");
   });
 
-  const secao = document.getElementById(view + "View");
-  if (secao) secao.classList.add("active");
+  document.getElementById(`${view}View`)?.classList.add("active");
 
-  const botao = document.querySelector(
-    `.nav-btn[data-view="${view}"]`
-  );
-  if (botao) botao.classList.add("active");
-
-  const titulo = document.getElementById("pageTitle");
-  const subtitulo = document.getElementById("pageSubtitle");
+  document
+    .querySelector(`.nav-btn[data-view="${view}"]`)
+    ?.classList.add("active");
 
   const paginas = {
-    pdv: {
-      titulo: "Nova venda",
-      subtitulo: "Monte o pedido e finalize a venda."
-    },
-    products: {
-      titulo: "Produtos",
-      subtitulo: "Gerencie os produtos cadastrados."
-    },
-    sales: {
-      titulo: "Vendas",
-      subtitulo: "Consulte o histórico de vendas."
-    },
-    dashboard: {
-      titulo: "Dashboard",
-      subtitulo: "Resumo do seu PDV."
-    }
+    pdv: ["Nova venda", "Monte o pedido e finalize a venda."],
+    products: ["Produtos", "Gerencie os produtos cadastrados."],
+    sales: ["Vendas", "Consulte o histórico de vendas."],
+    dashboard: ["Dashboard", "Resumo do seu PDV."]
   };
 
-  if (paginas[view]) {
-    if (titulo) titulo.textContent = paginas[view].titulo;
-    if (subtitulo) subtitulo.textContent = paginas[view].subtitulo;
+  const pagina = paginas[view];
+
+  if (pagina) {
+    const titulo = document.getElementById("pageTitle");
+    const subtitulo = document.getElementById("pageSubtitle");
+
+    if (titulo) titulo.textContent = pagina[0];
+    if (subtitulo) subtitulo.textContent = pagina[1];
   }
 
   if (view === "products") mostrarTabelaProdutos();
@@ -97,18 +83,13 @@ function configurarBusca() {
   input.addEventListener("input", () => {
     const termo = input.value.trim().toLowerCase();
 
-    if (!termo) {
-      mostrarProdutos(produtos);
-      return;
-    }
-
     const filtrados = produtos.filter(produto => {
-      const nome = String(
-        produto.Produto ?? produto.produto ?? ""
+      const nome = obterTexto(
+        produto.Produto ?? produto.produto
       ).toLowerCase();
 
       const categoria = obterTexto(
-        produto.Categoria ?? produto.categoria ?? ""
+        produto.Categoria ?? produto.categoria
       ).toLowerCase();
 
       return nome.includes(termo) || categoria.includes(termo);
@@ -125,9 +106,9 @@ function configurarBusca() {
 async function carregarProdutos() {
   try {
     const response = await fetch(`${API_URL}/products`);
-    const data = await response.json();
+    const data = await lerResposta(response);
 
-    if (!response.ok || !data.ok) {
+    if (!response.ok || data.ok === false) {
       throw new Error(data.error || "Erro ao buscar produtos.");
     }
 
@@ -141,144 +122,137 @@ async function carregarProdutos() {
 
     const grid = document.getElementById("productGrid");
     if (grid) {
-      grid.innerHTML = `
-        <div class="empty">
-          Erro ao carregar produtos.
-        </div>
-      `;
+      grid.innerHTML = `<div class="empty">Erro ao carregar produtos. Verifique a conexão com o servidor.</div>`;
     }
+
+    notificar("Não foi possível carregar os produtos.");
   }
 }
-
-// ========================================
-// MOSTRAR PRODUTOS
-// ========================================
 
 function mostrarProdutos(lista) {
   const container = document.getElementById("productGrid");
   if (!container) return;
 
-  container.innerHTML = "";
+  container.replaceChildren();
 
-  if (!Array.isArray(lista) || lista.length === 0) {
-    container.innerHTML = `
-      <div class="empty">
-        Nenhum produto cadastrado.
-      </div>
-    `;
+  const disponiveis = (Array.isArray(lista) ? lista : []).filter(produto => {
+    const ativo = produto.Ativo ?? produto.ativo ?? true;
+    return !(
+      ativo === false ||
+      ativo === "false" ||
+      ativo === 0
+    );
+  });
+
+  if (disponiveis.length === 0) {
+    container.innerHTML = `<div class="empty">Nenhum produto cadastrado.</div>`;
     return;
   }
 
-  lista.forEach(produto => {
+  disponiveis.forEach(produto => {
     const id = produto.ID ?? produto.id;
-    const nome = produto.Produto ?? produto.produto ?? "Produto";
-
-    const categoria = obterTexto(
-      produto.Categoria ?? produto.categoria ?? ""
+    const nome = obterTexto(produto.Produto ?? produto.produto ?? "Produto");
+    const categoria = obterTexto(produto.Categoria ?? produto.categoria);
+    const descricao = obterTexto(
+      produto.Descrição ?? produto.descrição ?? produto.Descricao
     );
-
     const preco = obterNumero(
       produto["Preço de venda"] ??
       produto["preço de venda"] ??
       produto["Preco de venda"] ??
       0
     );
+    const estoque = obterNumero(produto.Estoque ?? produto.estoque ?? 0);
+    const imagemURL = obterImagemURL(produto.Imagem ?? produto.imagem);
 
-    const estoque = obterNumero(
-      produto.Estoque ?? produto.estoque ?? 0
-    );
+    const card = document.createElement("article");
+    card.className = "product produto-card";
 
-    const descricao = obterTexto(
-      produto.Descrição ??
-      produto.descrição ??
-      produto.Descricao ??
-      ""
-    );
-
-    const ativo = produto.Ativo ?? produto.ativo ?? true;
-
-    if (ativo === false || ativo === "false" || ativo === 0) {
-      return;
-    }
-
-    const imagem = produto.Imagem ?? produto.imagem ?? null;
-    let imagemURL = "";
-
-    if (typeof imagem === "string") {
-      imagemURL = imagem;
-    } else if (Array.isArray(imagem) && imagem.length > 0) {
-      imagemURL =
-        imagem[0]?.url ||
-        imagem[0]?.thumbnails?.card_cover?.url ||
-        imagem[0]?.thumbnails?.small?.url ||
-        "";
-    }
-
-    const card = document.createElement("div");
-    card.className = "produto-card";
-
-    let imagemHTML;
+    const imagem = document.createElement("div");
+    imagem.className = "produto-visual";
 
     if (imagemURL) {
-      imagemHTML = `
-        <img
-          src="${escapeHTML(imagemURL)}"
-          class="produto-imagem"
-          alt="${escapeHTML(nome)}"
-        >
-      `;
-    } else {
-      imagemHTML = `
-        <div class="produto-sem-imagem">🥤</div>
-      `;
-    }
+      const img = document.createElement("img");
+      img.src = imagemURL;
+      img.alt = nome;
+      img.className = "produto-imagem";
+      img.loading = "lazy";
 
-    card.innerHTML = `
-      ${imagemHTML}
-
-      <div class="produto-info">
-        <div class="produto-categoria">
-          ${escapeHTML(categoria)}
-        </div>
-
-        <h3>${escapeHTML(nome)}</h3>
-
-        ${
-          descricao
-            ? `<p class="produto-descricao">${escapeHTML(descricao)}</p>`
-            : ""
-        }
-
-        <div class="produto-rodape">
-          <strong class="produto-preco">
-            ${formatarMoeda(preco)}
-          </strong>
-
-          <span class="produto-estoque">
-            Estoque: ${estoque}
-          </span>
-        </div>
-
-        <button
-          class="btn-adicionar"
-          data-id="${escapeHTML(String(id))}"
-          ${estoque <= 0 ? "disabled" : ""}
-        >
-          ${estoque <= 0 ? "Sem estoque" : "Adicionar"}
-        </button>
-      </div>
-    `;
-
-    const botao = card.querySelector(".btn-adicionar");
-
-    if (botao) {
-      botao.addEventListener("click", () => {
-        adicionarCarrinho(id);
+      img.addEventListener("error", () => {
+        imagem.replaceChildren();
+        imagem.textContent = "🥤";
+        imagem.classList.add("produto-sem-imagem");
       });
+
+      imagem.appendChild(img);
+    } else {
+      imagem.textContent = "🥤";
+      imagem.classList.add("produto-sem-imagem");
     }
 
+    const informacoes = document.createElement("div");
+    informacoes.className = "product-info produto-info";
+
+    const categoriaEl = document.createElement("small");
+    categoriaEl.className = "product-meta produto-categoria";
+    categoriaEl.textContent = categoria || "Sem categoria";
+
+    const nomeEl = document.createElement("h3");
+    nomeEl.className = "product-name";
+    nomeEl.textContent = nome;
+
+    informacoes.append(categoriaEl, nomeEl);
+
+    if (descricao) {
+      const descricaoEl = document.createElement("p");
+      descricaoEl.className = "produto-descricao";
+      descricaoEl.textContent = descricao;
+      informacoes.appendChild(descricaoEl);
+    }
+
+    const rodape = document.createElement("div");
+    rodape.className = "produto-rodape";
+
+    const precoEl = document.createElement("strong");
+    precoEl.className = "price produto-preco";
+    precoEl.textContent = formatarMoeda(preco);
+
+    const estoqueEl = document.createElement("span");
+    estoqueEl.className = "stock produto-estoque";
+    estoqueEl.textContent = `Estoque: ${estoque}`;
+
+    rodape.append(precoEl, estoqueEl);
+
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "primary btn-adicionar";
+    botao.textContent = estoque <= 0 ? "Sem estoque" : "Adicionar";
+    botao.disabled = estoque <= 0 || id == null;
+
+    botao.addEventListener("click", () => adicionarCarrinho(id));
+
+    informacoes.append(rodape, botao);
+    card.append(imagem, informacoes);
     container.appendChild(card);
   });
+}
+
+function obterImagemURL(imagem) {
+  if (typeof imagem === "string") return imagem;
+
+  if (Array.isArray(imagem) && imagem.length > 0) {
+    const arquivo = imagem[0];
+    return arquivo?.url ||
+      arquivo?.thumbnails?.card_cover?.url ||
+      arquivo?.thumbnails?.small?.url ||
+      "";
+  }
+
+  if (imagem && typeof imagem === "object") {
+    return imagem.url || imagem.value || "";
+  }
+
+  return "";
 }
 
 // ========================================
@@ -290,62 +264,55 @@ function mostrarTabelaProdutos() {
   if (!tabela) return;
 
   if (produtos.length === 0) {
-    tabela.innerHTML = `
-      <div class="empty">
-        Nenhum produto cadastrado.
-      </div>
-    `;
+    tabela.innerHTML = `<div class="empty">Nenhum produto cadastrado.</div>`;
     return;
   }
 
-  tabela.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Produto</th>
-          <th>Categoria</th>
-          <th>Preço</th>
-          <th>Estoque</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        ${produtos.map(produto => {
-          const id = produto.ID ?? produto.id ?? "-";
-
-          const categoria = obterTexto(
-            produto.Categoria ?? produto.categoria ?? ""
-          );
-
-          const ativo = produto.Ativo ?? produto.ativo ?? true;
-
-          const preco = obterNumero(
-            produto["Preço de venda"] ??
-            produto["preço de venda"] ??
-            produto["Preco de venda"] ??
-            0
-          );
-
-          const estoque = obterNumero(
-            produto.Estoque ?? produto.estoque ?? 0
-          );
-
-          return `
-            <tr>
-              <td>${escapeHTML(String(id))}</td>
-              <td>${escapeHTML(produto.Produto ?? produto.produto ?? "")}</td>
-              <td>${escapeHTML(categoria)}</td>
-              <td>${formatarMoeda(preco)}</td>
-              <td>${escapeHTML(String(estoque))}</td>
-              <td>${ativo ? "Ativo" : "Inativo"}</td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
+  const table = document.createElement("table");
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Produto</th>
+        <th>Categoria</th>
+        <th>Preço</th>
+        <th>Estoque</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
   `;
+
+  const tbody = table.querySelector("tbody");
+
+  produtos.forEach(produto => {
+    const ativo = produto.Ativo ?? produto.ativo ?? true;
+    const linha = document.createElement("tr");
+
+    [
+      produto.ID ?? produto.id ?? "-",
+      produto.Produto ?? produto.produto ?? "",
+      obterTexto(produto.Categoria ?? produto.categoria),
+      formatarMoeda(
+        produto["Preço de venda"] ??
+        produto["preço de venda"] ??
+        produto["Preco de venda"] ??
+        0
+      ),
+      obterNumero(produto.Estoque ?? produto.estoque ?? 0),
+      ativo === false || ativo === "false" || ativo === 0
+        ? "Inativo"
+        : "Ativo"
+    ].forEach(valor => {
+      const td = document.createElement("td");
+      td.textContent = String(valor);
+      linha.appendChild(td);
+    });
+
+    tbody.appendChild(linha);
+  });
+
+  tabela.replaceChildren(table);
 }
 
 // ========================================
@@ -353,72 +320,50 @@ function mostrarTabelaProdutos() {
 // ========================================
 
 function configurarCarrinho() {
-  const limpar = document.getElementById("clearCart");
+  document.getElementById("clearCart")?.addEventListener("click", () => {
+    carrinho = [];
+    atualizarCarrinho();
+  });
 
-  if (limpar) {
-    limpar.addEventListener("click", () => {
-      if (finalizandoVenda) return;
-
-      carrinho = [];
-      atualizarCarrinho();
-    });
-  }
-
-  const finalizar = document.getElementById("finishSale");
-
-  if (finalizar) {
-    finalizar.addEventListener("click", finalizarVenda);
-  }
+  document.getElementById("finishSale")?.addEventListener("click", finalizarVenda);
 }
 
-// ========================================
-// ADICIONAR AO CARRINHO
-// ========================================
-
 function adicionarCarrinho(id) {
-  if (finalizandoVenda) return;
-
-  const produto = produtos.find(
-    p => Number(p.ID ?? p.id) === Number(id)
+  const produto = produtos.find(p =>
+    String(p.ID ?? p.id) === String(id)
   );
 
   if (!produto) {
-    alert("Produto não encontrado.");
+    notificar("Produto não encontrado.");
     return;
   }
 
-  const nome = produto.Produto ?? produto.produto ?? "Produto";
-
+  const nome = obterTexto(produto.Produto ?? produto.produto ?? "Produto");
   const preco = obterNumero(
     produto["Preço de venda"] ??
     produto["preço de venda"] ??
     produto["Preco de venda"] ??
     0
   );
+  const estoque = obterNumero(produto.Estoque ?? produto.estoque ?? 0);
 
-  const estoque = obterNumero(
-    produto.Estoque ?? produto.estoque ?? 0
-  );
+  const existente = carrinho.find(item => String(item.id) === String(id));
 
-  const existente = carrinho.find(
-    item => Number(item.id) === Number(id)
-  );
+  if (estoque <= 0) {
+    notificar("Produto sem estoque.");
+    return;
+  }
 
   if (existente) {
     if (existente.quantidade >= estoque) {
-      alert("Quantidade maior que o estoque.");
+      notificar("Quantidade maior que o estoque disponível.");
       return;
     }
 
     existente.quantidade++;
   } else {
-    if (estoque <= 0) {
-      alert("Este produto está sem estoque.");
-      return;
-    }
-
     carrinho.push({
-      id: Number(id),
+      id,
       nome,
       preco,
       quantidade: 1,
@@ -429,104 +374,9 @@ function adicionarCarrinho(id) {
   atualizarCarrinho();
 }
 
-// ========================================
-// ATUALIZAR CARRINHO
-// ========================================
-
-function atualizarCarrinho() {
-  const container = document.getElementById("cartItems");
-  const totalElement = document.getElementById("cartTotal");
-  const countElement = document.getElementById("cartCount");
-
-  if (!container) return;
-
-  container.innerHTML = "";
-
-  if (carrinho.length === 0) {
-    container.innerHTML = `
-      <div class="empty">
-        Seu carrinho está vazio.
-      </div>
-    `;
-  } else {
-    carrinho.forEach(item => {
-      const subtotal = item.preco * item.quantidade;
-      const linha = document.createElement("div");
-
-      linha.className = "cart-item";
-
-      linha.innerHTML = `
-        <div>
-          <strong>${escapeHTML(item.nome)}</strong>
-          <small>
-            ${item.quantidade} × ${formatarMoeda(item.preco)}
-          </small>
-        </div>
-
-        <div>
-          <strong>${formatarMoeda(subtotal)}</strong>
-
-          <button
-            class="btn-remover"
-            data-id="${item.id}"
-            ${finalizandoVenda ? "disabled" : ""}
-          >
-            ×
-          </button>
-        </div>
-      `;
-
-      const remover = linha.querySelector(".btn-remover");
-
-      if (remover) {
-        remover.addEventListener("click", () => {
-          removerCarrinho(item.id);
-        });
-      }
-
-      container.appendChild(linha);
-    });
-  }
-
-  const total = calcularTotal();
-
-  if (totalElement) {
-    totalElement.textContent = formatarMoeda(total);
-  }
-
-  if (countElement) {
-    countElement.textContent = carrinho.reduce(
-      (soma, item) => soma + item.quantidade,
-      0
-    );
-  }
-
-  const botaoFinalizar = document.getElementById("finishSale");
-  if (botaoFinalizar) {
-    botaoFinalizar.disabled = finalizandoVenda;
-    botaoFinalizar.textContent = finalizandoVenda
-      ? "REGISTRANDO..."
-      : "Finalizar venda";
-  }
-
-  const botaoLimpar = document.getElementById("clearCart");
-  if (botaoLimpar) {
-    botaoLimpar.disabled = finalizandoVenda;
-  }
-}
-
-// ========================================
-// REMOVER DO CARRINHO
-// ========================================
-
 function removerCarrinho(id) {
-  if (finalizandoVenda) return;
-
-  const index = carrinho.findIndex(
-    item => Number(item.id) === Number(id)
-  );
-
-  if (index === -1) return;
+  const index = carrinho.findIndex(item => String(item.id) === String(id));
+  if (index < 0) return;
 
   if (carrinho[index].quantidade > 1) {
     carrinho[index].quantidade--;
@@ -537,14 +387,65 @@ function removerCarrinho(id) {
   atualizarCarrinho();
 }
 
-// ========================================
-// TOTAL
-// ========================================
+function atualizarCarrinho() {
+  const container = document.getElementById("cartItems");
+  const totalElement = document.getElementById("cartTotal");
+  const countElement = document.getElementById("cartCount");
+
+  if (container) {
+    container.replaceChildren();
+
+    if (carrinho.length === 0) {
+      container.innerHTML = `<div class="empty">Seu carrinho está vazio.</div>`;
+    } else {
+      carrinho.forEach(item => {
+        const linha = document.createElement("div");
+        linha.className = "cart-row cart-item";
+
+        const detalhes = document.createElement("div");
+        const nome = document.createElement("strong");
+        nome.className = "cart-name";
+        nome.textContent = item.nome;
+
+        const quantidade = document.createElement("small");
+        quantidade.className = "cart-sub";
+        quantidade.textContent = `${item.quantidade} × ${formatarMoeda(item.preco)}`;
+
+        detalhes.append(nome, quantidade);
+
+        const valores = document.createElement("div");
+        valores.className = "cart-actions";
+
+        const subtotal = document.createElement("strong");
+        subtotal.textContent = formatarMoeda(item.preco * item.quantidade);
+
+        const remover = document.createElement("button");
+        remover.type = "button";
+        remover.className = "text-btn btn-remover";
+        remover.textContent = "×";
+        remover.setAttribute("aria-label", `Remover uma unidade de ${item.nome}`);
+        remover.addEventListener("click", () => removerCarrinho(item.id));
+
+        valores.append(subtotal, remover);
+        linha.append(detalhes, valores);
+        container.appendChild(linha);
+      });
+    }
+  }
+
+  if (totalElement) totalElement.textContent = formatarMoeda(calcularTotal());
+
+  if (countElement) {
+    countElement.textContent = carrinho.reduce(
+      (total, item) => total + item.quantidade,
+      0
+    );
+  }
+}
 
 function calcularTotal() {
   return carrinho.reduce(
-    (total, item) =>
-      total + obterNumero(item.preco) * obterNumero(item.quantidade),
+    (total, item) => total + item.preco * item.quantidade,
     0
   );
 }
@@ -558,35 +459,32 @@ function configurarPagamento() {
 
   botoes.forEach(botao => {
     botao.addEventListener("click", () => {
-      if (finalizandoVenda) return;
-
       botoes.forEach(b => b.classList.remove("active"));
       botao.classList.add("active");
-
       pagamentoSelecionado = botao.dataset.payment || "PIX";
     });
   });
+
+  const ativo = document.querySelector(".payment.active");
+  if (ativo) pagamentoSelecionado = ativo.dataset.payment || "PIX";
 }
 
 // ========================================
-// FINALIZAR VENDA — OTIMIZADO
+// FINALIZAR VENDA
 // ========================================
 
 async function finalizarVenda() {
-  // Evita que cliques repetidos criem vendas duplicadas.
-  if (finalizandoVenda) return;
-
   if (carrinho.length === 0) {
-    alert("Adicione algum produto primeiro.");
+    notificar("Adicione algum produto primeiro.");
     return;
   }
 
-  // Guarda uma cópia para manter os dados estáveis durante o envio.
-  const itensVenda = carrinho.map(item => ({ ...item }));
-  const total = itensVenda.reduce(
-    (soma, item) => soma + obterNumero(item.preco) * obterNumero(item.quantidade),
-    0
-  );
+  const botao = document.getElementById("finishSale");
+  if (botao?.disabled) return;
+
+  if (botao) botao.disabled = true;
+
+  const total = calcularTotal();
 
   const venda = {
     total_bruto: total,
@@ -597,11 +495,6 @@ async function finalizarVenda() {
     observacao: ""
   };
 
-  const botao = document.getElementById("finishSale");
-
-  finalizandoVenda = true;
-  atualizarCarrinho();
-
   try {
     const response = await fetch(`${API_URL}/sales`, {
       method: "POST",
@@ -611,44 +504,37 @@ async function finalizarVenda() {
       },
       body: JSON.stringify({
         venda,
-        itens: itensVenda
+        itens: carrinho.map(item => ({
+          id: item.id,
+          nome: item.nome,
+          preco: item.preco,
+          quantidade: item.quantidade,
+          subtotal: item.preco * item.quantidade
+        }))
       })
     });
 
-    const data = await response.json();
+    const data = await lerResposta(response);
 
-    if (!response.ok || !data.ok) {
+    if (!response.ok || data.ok === false) {
       throw new Error(data.error || "Erro ao registrar venda.");
     }
 
-    // A venda já foi confirmada pelo servidor.
+    notificar("Venda registrada com sucesso!");
     carrinho = [];
     atualizarCarrinho();
 
-    alert("Venda registrada com sucesso!");
-
-    // Atualiza as telas em segundo plano; não atrasa a confirmação.
-    Promise.allSettled([
+    await Promise.all([
       carregarProdutos(),
       carregarVendas()
-    ]).then(() => {
-      atualizarDashboard();
-    });
+    ]);
 
+    atualizarDashboard();
   } catch (erro) {
     console.error("Erro ao finalizar venda:", erro);
-
-    alert(
-      "Não foi possível confirmar o registro da venda.\n\n" +
-      erro.message
-    );
+    notificar(`Não foi possível registrar a venda: ${erro.message}`);
   } finally {
-    finalizandoVenda = false;
-    atualizarCarrinho();
-
-    if (botao) {
-      botao.disabled = false;
-    }
+    if (botao) botao.disabled = false;
   }
 }
 
@@ -659,9 +545,9 @@ async function finalizarVenda() {
 async function carregarVendas() {
   try {
     const response = await fetch(`${API_URL}/sales`);
-    const data = await response.json();
+    const data = await lerResposta(response);
 
-    if (!response.ok || !data.ok) {
+    if (!response.ok || data.ok === false) {
       throw new Error(data.error || "Erro ao buscar vendas.");
     }
 
@@ -671,113 +557,105 @@ async function carregarVendas() {
     atualizarDashboard();
   } catch (erro) {
     console.error("Erro ao carregar vendas:", erro);
+
+    const tabela = document.getElementById("salesTable");
+    if (tabela) {
+      tabela.innerHTML = `<div class="empty">Não foi possível carregar as vendas.</div>`;
+    }
   }
 }
 
-// ========================================
-// TABELA DE VENDAS
-// ========================================
-
 function mostrarTabelaVendas() {
-  const tabela = document.getElementById("salesTable");
-  if (!tabela) return;
+  const container = document.getElementById("salesTable");
+  if (!container) return;
 
-  if (!Array.isArray(vendas) || vendas.length === 0) {
-    tabela.innerHTML = `
-      <div class="empty">
-        Nenhuma venda registrada.
-      </div>
-    `;
+  if (vendas.length === 0) {
+    container.innerHTML = `<div class="empty">Nenhuma venda registrada.</div>`;
     return;
   }
 
+  const tabela = document.createElement("table");
   tabela.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Data</th>
-          <th>Produto</th>
-          <th>Qtd.</th>
-          <th>Total</th>
-          <th>Pagamento</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        ${vendas.map(venda => {
-          const id = venda.id ?? venda.ID ?? "-";
-
-          const data =
-            venda["Criado em"] ??
-            venda["created_on"] ??
-            venda["Created on"] ??
-            venda["Data da venda"] ??
-            venda["Data de venda"] ??
-            venda.data_da_venda ??
-            "";
-
-          const total = obterNumero(
-            venda["Total da Venda"] ??
-            venda["Total da venda"] ??
-            venda["Total venda"] ??
-            venda["Total de Venda"] ??
-            venda["Total de venda"] ??
-            venda.total_venda ??
-            venda.total ??
-            venda.valor_total ??
-            0
-          );
-
-          const pagamento = obterTexto(
-            venda.Pagamento ?? venda.pagamento ?? ""
-          );
-
-          const status = obterTexto(
-            venda.Status ?? venda.status ?? ""
-          );
-
-          const itens = Array.isArray(venda.itens) ? venda.itens : [];
-
-          const nomes = itens.map(item => {
-            if (item.produto && typeof item.produto === "object") {
-              return obterTexto(
-                item.produto.nome ??
-                item.produto.Produto ??
-                item.produto.produto ??
-                "Produto"
-              );
-            }
-
-            if (typeof item.produto === "string") {
-              return item.produto;
-            }
-
-            return "Produto";
-          }).filter(Boolean).join(", ");
-
-          const quantidade = itens.reduce(
-            (soma, item) =>
-              soma + obterNumero(item.quantidade ?? item.Quantidade ?? 0),
-            0
-          );
-
-          return `
-            <tr>
-              <td>${escapeHTML(String(id))}</td>
-              <td>${formatarData(data)}</td>
-              <td>${escapeHTML(nomes || "Produto")}</td>
-              <td>${quantidade}</td>
-              <td><strong>${formatarMoeda(total)}</strong></td>
-              <td>${escapeHTML(pagamento)}</td>
-              <td>${escapeHTML(status)}</td>
-            </tr>
-          `;
-        }).join("")}
-      </tbody>
-    </table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Data</th>
+        <th>Produto</th>
+        <th>Qtd.</th>
+        <th>Total</th>
+        <th>Pagamento</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
   `;
+
+  const tbody = tabela.querySelector("tbody");
+
+  vendas.forEach(venda => {
+    const itens = Array.isArray(venda.itens) ? venda.itens : [];
+    const nomes = itens.map(item => {
+      if (item.produto && typeof item.produto === "object") {
+        return obterTexto(
+          item.produto.nome ??
+          item.produto.Produto ??
+          item.produto.produto ??
+          "Produto"
+        );
+      }
+
+      return typeof item.produto === "string"
+        ? item.produto
+        : obterTexto(item.nome ?? item.Produto ?? "Produto");
+    }).filter(Boolean).join(", ");
+
+    const quantidade = itens.reduce(
+      (soma, item) => soma + obterNumero(item.quantidade ?? item.Quantidade),
+      0
+    );
+
+    const data = obterCampo(venda, [
+      "Criado em",
+      "created_on",
+      "Created on",
+      "Data da venda",
+      "Data de venda",
+      "data_da_venda"
+    ]);
+
+    const total = obterNumero(obterCampo(venda, [
+      "Total da Venda",
+      "Total da venda",
+      "Total venda",
+      "Total de Venda",
+      "Total de venda",
+      "total_venda",
+      "total",
+      "valor_total"
+    ]));
+
+    const campos = [
+      venda.id ?? venda.ID ?? "-",
+      formatarData(data),
+      nomes || "—",
+      quantidade,
+      formatarMoeda(total),
+      obterTexto(venda.Pagamento ?? venda.pagamento),
+      obterTexto(venda.Status ?? venda.status)
+    ];
+
+    const tr = document.createElement("tr");
+
+    campos.forEach(valor => {
+      const td = document.createElement("td");
+      td.textContent = String(valor);
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  container.replaceChildren(tabela);
 }
 
 // ========================================
@@ -788,41 +666,34 @@ function atualizarDashboard() {
   const hoje = new Date();
 
   const vendasHoje = vendas.filter(venda => {
-    const data =
-      venda["Criado em"] ??
-      venda["created_on"] ??
-      venda["Created on"] ??
-      venda["Data da venda"] ??
-      venda["Data de venda"] ??
-      venda.data_da_venda ??
-      "";
+    const valorData = obterCampo(venda, [
+      "Criado em",
+      "created_on",
+      "Created on",
+      "Data da venda",
+      "Data de venda",
+      "data_da_venda"
+    ]);
 
+    const data = converterDataBaserow(valorData);
     if (!data) return false;
 
-    const d = converterDataBaserow(data);
-    if (!d) return false;
-
-    return (
-      d.getDate() === hoje.getDate() &&
-      d.getMonth() === hoje.getMonth() &&
-      d.getFullYear() === hoje.getFullYear()
-    );
+    return data.getFullYear() === hoje.getFullYear() &&
+      data.getMonth() === hoje.getMonth() &&
+      data.getDate() === hoje.getDate();
   });
 
   const faturamento = vendasHoje.reduce((soma, venda) => {
-    const valor = obterNumero(
-      venda["Total da Venda"] ??
-      venda["Total da venda"] ??
-      venda["Total venda"] ??
-      venda["Total de Venda"] ??
-      venda["Total de venda"] ??
-      venda.total_venda ??
-      venda.total ??
-      venda.valor_total ??
-      0
-    );
-
-    return soma + valor;
+    return soma + obterNumero(obterCampo(venda, [
+      "Total da Venda",
+      "Total da venda",
+      "Total venda",
+      "Total de Venda",
+      "Total de venda",
+      "total_venda",
+      "total",
+      "valor_total"
+    ]));
   }, 0);
 
   const statSales = document.getElementById("statSales");
@@ -836,8 +707,7 @@ function atualizarDashboard() {
 
   if (statStock) {
     statStock.textContent = produtos.reduce(
-      (total, produto) =>
-        total + obterNumero(produto.Estoque ?? produto.estoque ?? 0),
+      (soma, produto) => soma + obterNumero(produto.Estoque ?? produto.estoque),
       0
     );
   }
@@ -848,23 +718,12 @@ function atualizarDashboard() {
 // ========================================
 
 function configurarNovoProduto() {
-  const botao = document.getElementById("newProductBtn");
-  if (!botao) return;
-
-  botao.addEventListener("click", abrirFormularioProduto);
+  document.getElementById("newProductBtn")
+    ?.addEventListener("click", abrirFormularioProduto);
 }
 
-// ========================================
-// ABRIR FORMULÁRIO DE PRODUTO
-// ========================================
-
 function abrirFormularioProduto() {
-  const existente = document.getElementById("novoProdutoModal");
-
-  if (existente) {
-    existente.classList.remove("hidden");
-    return;
-  }
+  if (document.getElementById("novoProdutoModal")) return;
 
   const modal = document.createElement("div");
   modal.id = "novoProdutoModal";
@@ -872,46 +731,45 @@ function abrirFormularioProduto() {
 
   modal.innerHTML = `
     <div class="modal-card">
-      <button class="close" id="fecharNovoProduto">×</button>
-
+      <button class="close" id="fecharNovoProduto" type="button">×</button>
       <h2>Novo produto</h2>
       <p>Cadastre um novo produto.</p>
 
       <div class="admin-grid">
         <div style="grid-column:1/-1">
-          <label>Produto</label>
-          <input id="novoProdutoNome" type="text" placeholder="Nome do produto">
+          <label for="novoProdutoNome">Produto</label>
+          <input id="novoProdutoNome" type="text" placeholder="Nome do produto" required>
         </div>
 
         <div>
-          <label>Categoria</label>
+          <label for="novoProdutoCategoria">Categoria</label>
           <input id="novoProdutoCategoria" type="text" placeholder="Bebidas">
         </div>
 
         <div>
-          <label>Estoque</label>
-          <input id="novoProdutoEstoque" type="number" min="0" value="0">
+          <label for="novoProdutoEstoque">Estoque</label>
+          <input id="novoProdutoEstoque" type="number" min="0" step="1" value="0">
         </div>
 
         <div>
-          <label>Preço de venda</label>
+          <label for="novoProdutoPreco">Preço de venda</label>
           <input id="novoProdutoPreco" type="number" min="0" step="0.01" value="0">
         </div>
 
         <div>
-          <label>Custo</label>
+          <label for="novoProdutoCusto">Custo</label>
           <input id="novoProdutoCusto" type="number" min="0" step="0.01" value="0">
         </div>
 
         <div style="grid-column:1/-1">
-          <label>Descrição</label>
+          <label for="novoProdutoDescricao">Descrição</label>
           <textarea id="novoProdutoDescricao" rows="3" placeholder="Descrição do produto"></textarea>
         </div>
       </div>
 
       <div style="display:flex;gap:10px;margin-top:20px">
-        <button class="secondary" id="cancelarNovoProduto">Cancelar</button>
-        <button class="primary" id="salvarNovoProduto">CADASTRAR PRODUTO</button>
+        <button class="secondary" id="cancelarNovoProduto" type="button">Cancelar</button>
+        <button class="primary" id="salvarNovoProduto" type="button">CADASTRAR PRODUTO</button>
       </div>
     </div>
   `;
@@ -925,49 +783,49 @@ function abrirFormularioProduto() {
     .addEventListener("click", fecharFormularioProduto);
 
   modal.addEventListener("click", event => {
-    if (event.target === modal) {
-      fecharFormularioProduto();
-    }
+    if (event.target === modal) fecharFormularioProduto();
   });
 
   document.getElementById("salvarNovoProduto")
     .addEventListener("click", salvarNovoProduto);
 }
 
-// ========================================
-// FECHAR FORMULÁRIO
-// ========================================
-
 function fecharFormularioProduto() {
-  const modal = document.getElementById("novoProdutoModal");
-  if (modal) modal.remove();
+  document.getElementById("novoProdutoModal")?.remove();
 }
 
-// ========================================
-// SALVAR NOVO PRODUTO
-// ========================================
-
 async function salvarNovoProduto() {
-  const nome = document.getElementById("novoProdutoNome").value.trim();
-  const categoria = document.getElementById("novoProdutoCategoria").value.trim();
-  const preco = Number(document.getElementById("novoProdutoPreco").value || 0);
-  const custo = Number(document.getElementById("novoProdutoCusto").value || 0);
-  const estoque = Number(document.getElementById("novoProdutoEstoque").value || 0);
-  const descricao = document.getElementById("novoProdutoDescricao").value.trim();
+  const nome = document.getElementById("novoProdutoNome")?.value.trim() ?? "";
+  const categoria = document.getElementById("novoProdutoCategoria")?.value.trim() ?? "";
+  const precoTexto = document.getElementById("novoProdutoPreco")?.value ?? "";
+  const custoTexto = document.getElementById("novoProdutoCusto")?.value ?? "";
+  const estoqueTexto = document.getElementById("novoProdutoEstoque")?.value ?? "";
+  const descricao = document.getElementById("novoProdutoDescricao")?.value.trim() ?? "";
+
+  const preco = Number(precoTexto);
+  const custo = Number(custoTexto);
+  const estoque = Number(estoqueTexto);
 
   if (!nome) {
-    alert("Digite o nome do produto.");
+    notificar("Digite o nome do produto.");
     return;
   }
 
-  if (preco < 0 || custo < 0 || estoque < 0) {
-    alert("Os valores não podem ser negativos.");
+  if (
+    precoTexto === "" || custoTexto === "" || estoqueTexto === "" ||
+    !Number.isFinite(preco) || !Number.isFinite(custo) ||
+    !Number.isFinite(estoque) || preco < 0 || custo < 0 ||
+    estoque < 0 || !Number.isInteger(estoque)
+  ) {
+    notificar("Confira os valores de preço, custo e estoque.");
     return;
   }
 
   const botao = document.getElementById("salvarNovoProduto");
-  botao.disabled = true;
-  botao.textContent = "CADASTRANDO...";
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent = "CADASTRANDO...";
+  }
 
   try {
     const response = await fetch(`${API_URL}/products`, {
@@ -987,27 +845,25 @@ async function salvarNovoProduto() {
       })
     });
 
-    const data = await response.json();
+    const data = await lerResposta(response);
 
-    if (!response.ok || !data.ok) {
-      throw new Error(
-        data.error || "Não foi possível cadastrar o produto."
-      );
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.error || "Não foi possível cadastrar o produto.");
     }
 
-    alert("Produto cadastrado com sucesso!");
-
     fecharFormularioProduto();
+    notificar("Produto cadastrado com sucesso!");
 
     await carregarProdutos();
     trocarView("products");
   } catch (erro) {
     console.error("Erro ao cadastrar produto:", erro);
+    notificar(`Erro ao cadastrar produto: ${erro.message}`);
 
-    alert("Erro ao cadastrar produto:\n" + erro.message);
-
-    botao.disabled = false;
-    botao.textContent = "CADASTRAR PRODUTO";
+    if (botao) {
+      botao.disabled = false;
+      botao.textContent = "CADASTRAR PRODUTO";
+    }
   }
 }
 
@@ -1020,35 +876,50 @@ function configurarAdmin() {
   const fechar = document.getElementById("closeAdmin");
   const modal = document.getElementById("adminModal");
 
-  if (abrir && modal) {
-    abrir.addEventListener("click", () => {
-      modal.classList.remove("hidden");
-    });
-  }
+  abrir?.addEventListener("click", () => modal?.classList.remove("hidden"));
+  fechar?.addEventListener("click", () => modal?.classList.add("hidden"));
 
-  if (fechar && modal) {
-    fechar.addEventListener("click", () => {
-      modal.classList.add("hidden");
-    });
-  }
-
-  if (modal) {
-    modal.addEventListener("click", event => {
-      if (event.target === modal) {
-        modal.classList.add("hidden");
-      }
-    });
-  }
+  modal?.addEventListener("click", event => {
+    if (event.target === modal) modal.classList.add("hidden");
+  });
 }
 
 // ========================================
-// CONVERTER NÚMERO
+// UTILITÁRIOS
 // ========================================
 
-function obterNumero(valor) {
-  if (valor === null || valor === undefined || valor === "") {
-    return 0;
+async function lerResposta(response) {
+  const texto = await response.text();
+
+  let data;
+  try {
+    data = texto ? JSON.parse(texto) : {};
+  } catch {
+    throw new Error(
+      `O servidor retornou uma resposta inválida (HTTP ${response.status}).`
+    );
   }
+
+  return data;
+}
+
+function obterCampo(objeto, nomes) {
+  for (const nome of nomes) {
+    if (
+      objeto &&
+      Object.prototype.hasOwnProperty.call(objeto, nome) &&
+      objeto[nome] !== null &&
+      objeto[nome] !== undefined
+    ) {
+      return objeto[nome];
+    }
+  }
+
+  return "";
+}
+
+function obterNumero(valor) {
+  if (valor === null || valor === undefined || valor === "") return 0;
 
   if (typeof valor === "number") {
     return Number.isFinite(valor) ? valor : 0;
@@ -1064,9 +935,7 @@ function obterNumero(valor) {
     );
   }
 
-  let texto = String(valor).trim();
-
-  texto = texto.replace(/R\$/gi, "").trim();
+  let texto = String(valor).trim().replace(/R\$/gi, "").trim();
 
   if (texto.includes(",")) {
     texto = texto.replace(/\./g, "").replace(",", ".");
@@ -1078,18 +947,11 @@ function obterNumero(valor) {
   return Number.isFinite(numero) ? numero : 0;
 }
 
-// ========================================
-// OBTER TEXTO
-// ========================================
-
 function obterTexto(valor) {
   if (valor === null || valor === undefined) return "";
 
   if (Array.isArray(valor)) {
-    return valor
-      .map(item => obterTexto(item))
-      .filter(Boolean)
-      .join(", ");
+    return valor.map(obterTexto).filter(Boolean).join(", ");
   }
 
   if (typeof valor === "object") {
@@ -1107,17 +969,12 @@ function obterTexto(valor) {
   return String(valor);
 }
 
-// ========================================
-// DATA BASEROW
-// ========================================
-
 function converterDataBaserow(valor) {
   if (!valor) return null;
   if (valor instanceof Date) return valor;
 
   if (typeof valor === "object") {
-    valor =
-      valor.value ??
+    valor = valor.value ??
       valor.date ??
       valor.datetime ??
       valor.created_on ??
@@ -1127,46 +984,31 @@ function converterDataBaserow(valor) {
   const texto = String(valor).trim();
   if (!texto) return null;
 
-  const data = new Date(texto);
-
-  if (!Number.isNaN(data.getTime())) {
-    return data;
-  }
+  const iso = new Date(texto);
+  if (!Number.isNaN(iso.getTime())) return iso;
 
   const match = texto.match(
     /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/
   );
 
-  if (match) {
-    const dia = Number(match[1]);
-    const mes = Number(match[2]) - 1;
-    const ano = Number(match[3]);
-    const hora = Number(match[4] || 0);
-    const minuto = Number(match[5] || 0);
-    const segundo = Number(match[6] || 0);
+  if (!match) return null;
 
-    return new Date(ano, mes, dia, hora, minuto, segundo);
-  }
-
-  return null;
+  return new Date(
+    Number(match[3]),
+    Number(match[2]) - 1,
+    Number(match[1]),
+    Number(match[4] || 0),
+    Number(match[5] || 0),
+    Number(match[6] || 0)
+  );
 }
 
-// ========================================
-// FORMATAR MOEDA
-// ========================================
-
 function formatarMoeda(valor) {
-  const numero = obterNumero(valor);
-
-  return numero.toLocaleString("pt-BR", {
+  return obterNumero(valor).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL"
   });
 }
-
-// ========================================
-// FORMATAR DATA
-// ========================================
 
 function formatarData(valor) {
   if (!valor) return "-";
@@ -1177,15 +1019,18 @@ function formatarData(valor) {
   return data.toLocaleString("pt-BR");
 }
 
-// ========================================
-// ESCAPAR HTML
-// ========================================
+function notificar(mensagem) {
+  const toast = document.getElementById("toast");
 
-function escapeHTML(valor) {
-  return String(valor ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  if (toast) {
+    toast.textContent = mensagem;
+    toast.classList.remove("hidden");
+
+    clearTimeout(notificar.timer);
+    notificar.timer = setTimeout(() => {
+      toast.classList.add("hidden");
+    }, 3500);
+  } else {
+    alert(mensagem);
+  }
 }
